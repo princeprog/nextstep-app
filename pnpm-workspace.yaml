@@ -1,3 +1,6 @@
 allowBuilds:
   sharp: false
   unrs-resolver: false
+# Only install versions published at least a day ago (pnpm 11's default). Declared here so local installs follow
+# the same supply-chain rule as CI, whatever a developer's global pnpm settings say.
+minimumReleaseAge: 1440
