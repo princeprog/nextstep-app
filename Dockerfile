@@ -3,7 +3,7 @@
 # API_ORIGIN and NEXT_PUBLIC_SITE_URL are fixed at build time (README, "Container image"). Run it behind an HTTPS proxy
 # that sets X-Forwarded-For. Base images are pinned by digest, and Dependabot proposes updates.
 
-FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
+FROM node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm install --global pnpm@11.8.0
@@ -18,7 +18,7 @@ RUN if [ -z "$API_ORIGIN" ] || [ -z "$NEXT_PUBLIC_SITE_URL" ]; then \
     fi \
     && NEXT_OUTPUT=standalone pnpm build
 
-FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
+FROM node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 APP_HTTPS=true
 # The server code stays owned by root, so code running in the server can't rewrite it; only the cache is writable.
