@@ -26,6 +26,19 @@ export class ApiError extends Error {
   get isCsrf() {
     return this.status === 403 && this.code === "CSRF_INVALID"
   }
+
+  /**
+   * The account's email isn't confirmed, so the API refuses workspace requests. Sign-in requires a confirmed email, so
+   * only a session started before that rule can get this answer.
+   */
+  get isEmailNotVerified() {
+    return this.status === 403 && this.code === "EMAIL_NOT_VERIFIED"
+  }
+
+  /** An email link that is unknown, already used, replaced by a newer one, or expired. */
+  get isTokenInvalid() {
+    return this.status === 400 && this.code === "TOKEN_INVALID"
+  }
 }
 
 export function isApiError(value: unknown): value is ApiError {

@@ -1,9 +1,9 @@
 import { expect, test } from "./fixtures"
-import { createApplicationsThroughApi, manilaDate, register, watchDialogs } from "./helpers"
+import { createAccount, createApplicationsThroughApi, manilaDate, watchDialogs } from "./helpers"
 
 test("the task picker finds any active application by searching, not only the first page", async ({ page }) => {
   watchDialogs(page)
-  await register(page, "Picker User")
+  await createAccount(page, "Picker User")
   // 105 applications sort before the one we need; the old picker only listed the first 100.
   await createApplicationsThroughApi(page, Array.from({ length: 105 }, (_, index) => ({
     company: "Bulk Co " + String(index + 1).padStart(3, "0"),
@@ -36,7 +36,7 @@ test("the task picker finds any active application by searching, not only the fi
 
 test("the interview picker explains when nothing matches and keeps typed details after a failed save", async ({ page }) => {
   watchDialogs(page)
-  await register(page, "Picker Empty")
+  await createAccount(page, "Picker Empty")
   await createApplicationsThroughApi(page, [{ company: "Northwind Labs", jobTitle: "QA Engineer" }])
 
   await page.goto("/interviews")

@@ -1,9 +1,9 @@
 import { expect, test } from "./fixtures"
-import { card, manilaDate, register, watchDialogs } from "./helpers"
+import { card, createAccount, manilaDate, watchDialogs } from "./helpers"
 
 test("a new user tracks an application from first save to dashboard, archive, and restore", async ({ page }) => {
   const alerts = watchDialogs(page)
-  await register(page, "Ana Cruz")
+  await createAccount(page, "Ana Cruz")
 
   await expect(page.getByRole("heading", { name: "Start with your first application" })).toBeVisible()
   await page.getByRole("link", { name: "Add application" }).first().click()
@@ -88,7 +88,7 @@ test("a new user tracks an application from first save to dashboard, archive, an
 
 test("form errors appear next to fields and keep what was typed", async ({ page }) => {
   watchDialogs(page)
-  await register(page)
+  await createAccount(page)
   await page.goto("/applications/new")
   await page.getByLabel("Company", { exact: true }).fill("Salary Check Co")
   await page.getByLabel("Job title", { exact: true }).fill("Analyst")

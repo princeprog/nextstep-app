@@ -12,10 +12,11 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Wordmark } from "@/components/brand"
 import { ErrorState } from "@/components/error-state"
+import { type ExitWorkspace, ExitWorkspaceContext, useExitWorkspace } from "@/components/exit-workspace"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -52,21 +53,6 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ]
 
-type ExitWorkspace = (target: string, work?: () => Promise<unknown>) => Promise<void>
-
-const ExitWorkspaceContext = createContext<ExitWorkspace>(async (_target, work) => {
-  await work?.()
-})
-
-/**
- * Leaves the workspace on purpose (sign-out, account deletion). Optional `work` (the sign-out request) runs first;
- * then private data is cleared and the browser goes to `target`. Once leaving has started, 401 responses from
- * requests still in flight are expected and no longer redirect elsewhere.
- */
-export function useExitWorkspace() {
-  return useContext(ExitWorkspaceContext)
-}
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -74,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const ending = useRef(false)
   const me = useMe({ enabled: endedTarget === null })
   const clear = useClearPrivateState()
+  const { mutateAsync: endSession } = useSignOut()
 
   // Every way out of the workspace ends here, once: stop rendering private views, then (in the effect below) drop
   // every cached record and go to the target page.
@@ -90,16 +77,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   // When the API says the session ended, leave with an explanation. Later 401s from requests already in flight
-  // are ignored because leaving has started.
+  // are ignored because leaving has started. A refusal for an unconfirmed email comes from a session started before
+  // sign-in required a confirmed email; that session is still open on the server, so it is ended first, or the sign-in
+  // page would find it and send the browser straight back.
   useEffect(() => {
     onSessionEnded((error) => {
+      if (error.isEmailNotVerified) {
+        void exitWorkspace("/login?reason=confirm-email", () => endSession())
+        return
+      }
       const hadSession = Boolean(queryClient.getQueryData(keys.me))
       void exitWorkspace(
         !hadSession ? "/login" : error.code === "DEMO_EXPIRED" ? "/login?reason=demo-expired" : "/login?reason=expired",
       )
     })
     return () => onSessionEnded(null)
-  }, [queryClient, exitWorkspace])
+  }, [queryClient, exitWorkspace, endSession])
 
   useEffect(() => {
     if (endedTarget) {
@@ -133,7 +126,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (me.isError) {
+  // A failed background check keeps the account already shown; only a first load without data shows the error.
+  if (!me.data) {
     return (
       <main className="mx-auto max-w-md p-6">
         <ErrorState title="We couldn't load your workspace" error={me.error} onRetry={() => me.refetch()} />

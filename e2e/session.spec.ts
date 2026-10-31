@@ -1,8 +1,10 @@
+import { expectNoAxeViolations } from "./a11y"
 import { expect, test } from "./fixtures"
-import { createApplication, register, startDemo, watchDialogs } from "./helpers"
+import { createAccount, createApplication, startDemo, watchDialogs } from "./helpers"
+import { SUBJECTS, waitForEmails } from "./mailpit"
 
 test("signing out clears private data and protects workspace pages", async ({ page }) => {
-  await register(page)
+  await createAccount(page)
   await createApplication(page, "Cache Check Co")
   await page.getByRole("link", { name: "Applications", exact: true }).click()
   await expect(page.getByRole("link", { name: "Cache Check Co" }).first()).toBeVisible()
@@ -19,7 +21,7 @@ test("signing out clears private data and protects workspace pages", async ({ pa
 })
 
 test("signing out after using a dialog still explains it, and the workspace sends nothing more", async ({ page }) => {
-  await register(page)
+  await createAccount(page)
   await page.goto("/tasks")
   await page.getByRole("button", { name: "Add task" }).click()
   await expect(page.getByRole("dialog", { name: "Add a task" })).toBeVisible()
@@ -41,7 +43,7 @@ test("signing out after using a dialog still explains it, and the workspace send
 })
 
 test("an ended session sends the user to sign in with an explanation", async ({ page, context }) => {
-  await register(page)
+  await createAccount(page)
   await expect(page.getByRole("heading", { name: "Start with your first application" })).toBeVisible()
   await context.clearCookies()
   await page.getByRole("link", { name: "Applications", exact: true }).click()
@@ -50,26 +52,52 @@ test("an ended session sends the user to sign in with an explanation", async ({ 
 })
 
 test("signing out from settings explains it", async ({ page }) => {
-  await register(page)
+  await createAccount(page)
   await page.goto("/settings")
   await page.getByRole("main").getByRole("button", { name: "Sign out" }).click()
   await expect(page).toHaveURL(/\/login\?reason=signed-out$/)
   await expect(page.getByText("You've signed out.")).toBeVisible()
 })
 
-test("deleting the account ends the session with an explanation", async ({ page }) => {
+test("deleting the account needs its password, then ends the session with an explanation", async ({ page }) => {
   watchDialogs(page)
-  const { email } = await register(page)
+  const account = await createAccount(page)
   await page.goto("/settings")
-  await page.getByRole("button", { name: "Delete account…" }).click()
+  const trigger = page.getByRole("button", { name: "Delete account…" })
+  await trigger.click()
   const dialog = page.getByRole("alertdialog", { name: "Delete your account permanently?" })
-  await dialog.getByLabel("Email address").fill(email)
-  await dialog.getByRole("button", { name: "Delete account" }).click()
+  const password = dialog.getByLabel("Password", { exact: true })
+  await expect(password).toBeFocused()
 
+  // A wrong password is explained next to the field, and nothing is deleted.
+  await password.fill("not the right password")
+  await dialog.getByRole("button", { name: "Delete account" }).click()
+  await expect(dialog.getByText("That password isn't correct.")).toBeVisible()
+  await expect(password).toHaveAttribute("aria-invalid", "true")
+  await expect(password).toHaveAttribute("aria-describedby", "delete-password-error")
+  await expect(password).toBeFocused()
+  await expectNoAxeViolations(page, "delete dialog with a wrong password")
+
+  // Escape closes it and returns focus to the button that opened it.
+  await page.keyboard.press("Escape")
+  await expect(dialog).toBeHidden()
+  await expect(trigger).toBeFocused()
+
+  await trigger.click()
+  await expect(password).toHaveValue("")
+  await password.fill(account.password)
+  await password.press("Enter")
   await expect(page).toHaveURL(/\/login\?reason=deleted$/)
   await expect(page.getByText("Your account and its data were deleted.")).toBeVisible()
   await page.goto("/dashboard")
   await expect(page).toHaveURL(/\/login$/)
+
+  // The account is gone, so its password no longer signs in, and the owner was told by email.
+  await page.getByLabel("Email", { exact: true }).fill(account.email)
+  await page.getByLabel("Password", { exact: true }).fill(account.password)
+  await page.getByRole("button", { name: "Sign in" }).click()
+  await expect(page.getByText("Email or password is incorrect.")).toBeVisible()
+  await waitForEmails(account.email, SUBJECTS.deleted)
 })
 
 test("a signed-in visitor must leave before starting a separate demo", async ({ page }) => {

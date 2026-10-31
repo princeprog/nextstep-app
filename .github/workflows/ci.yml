@@ -99,6 +99,39 @@ jobs:
             echo "DATABASE_PASSWORD=$app_password"
           } >> "$GITHUB_ENV"
 
+      - name: Start Mailpit
+        # A local SMTP server with an HTTP API. The API sends confirmation and reset emails to it, and the tests read
+        # the links from http://127.0.0.1:8025. Downloaded from its GitHub release and checked against a pinned hash;
+        # change the version and the hash together.
+        env:
+          MAILPIT_VERSION: v1.33.0
+          MAILPIT_SHA256: d0ec50080cbf3e7c1fa2cda2ee68125d7894175811084b1f8f47c6cfc6f487c8
+        run: |
+          archive="$RUNNER_TEMP/mailpit-linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location --output "$archive" \
+            "https://github.com/axllent/mailpit/releases/download/$MAILPIT_VERSION/mailpit-linux-amd64.tar.gz"
+          echo "$MAILPIT_SHA256  $archive" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/mailpit"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/mailpit" mailpit
+          nohup "$RUNNER_TEMP/mailpit/mailpit" --listen 127.0.0.1:8025 --smtp 127.0.0.1:1025 \
+            > "$RUNNER_TEMP/mailpit.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/mailpit.pid"
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:8025/readyz; then
+              echo "Mailpit is ready after $attempt checks"
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/mailpit.pid")" 2>/dev/null; then
+              echo "::error::Mailpit exited during startup"
+              tail -n 50 "$RUNNER_TEMP/mailpit.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::Mailpit did not answer within 30 seconds"
+          tail -n 50 "$RUNNER_TEMP/mailpit.log"
+          exit 1
+
       - name: Build the API
         working-directory: nextstep-api
         run: ./mvnw -B -DskipTests package
@@ -106,10 +139,21 @@ jobs:
       - name: Start the API
         working-directory: nextstep-api
         env:
-          # The suite creates many accounts and demos from one address.
+          # The suite creates many accounts and demos, and asks for many emailed links, from one address.
           DEMO_RATE_LIMIT_PER_HOUR: "1000"
+          DEMO_GLOBAL_RATE_LIMIT_PER_HOUR: "1000"
           REGISTER_RATE_LIMIT_PER_HOUR: "1000"
           LOGIN_RATE_LIMIT_PER_WINDOW: "1000"
+          EMAIL_REQUEST_RATE_LIMIT_PER_HOUR: "1000"
+          LINK_RATE_LIMIT_PER_WINDOW: "1000"
+          # The hourly email allowance for all visitors together: emails sent, and register, resend, and reset requests.
+          EMAIL_GLOBAL_LIMIT_PER_HOUR: "100000"
+          # Send email to Mailpit (plain SMTP on loopback). Links point at APP_PUBLIC_ORIGIN, http://localhost:3000.
+          MAIL_MODE: smtp
+          MAIL_HOST: 127.0.0.1
+          MAIL_PORT: "1025"
+          MAIL_SMTP_AUTH: "false"
+          MAIL_STARTTLS: "false"
         run: |
           jar="$(find target -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' | head -n 1)"
           nohup java -jar "$jar" > "$RUNNER_TEMP/api.log" 2>&1 &
@@ -163,3 +207,4 @@ jobs:
             nextstep-app/test-results/
             ${{ runner.temp }}/api.log
             ${{ runner.temp }}/postgres.log
+            ${{ runner.temp }}/mailpit.log

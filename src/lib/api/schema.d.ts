@@ -45,7 +45,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a normal account and sign in */
+        /**
+         * Start registration; the confirmation link goes to the email address
+         * @description Answers 202 with the same body whether or not the email already has an account, so registration doesn't reveal
+         *     which emails are registered. A new account starts unverified and no session is created; the person signs in
+         *     after confirming the email. A confirmed account doesn't change; its owner is emailed instead. An unconfirmed
+         *     account takes the newest registration's name, password, and time zone, and gets a new link. Answers 429 when
+         *     this address or email is over its limit, or when every visitor together has queued an hour's worth of email.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -59,7 +66,15 @@ export interface paths {
                 };
             };
             responses: {
-                201: components["responses"]["Me"];
+                /** @description Registration accepted; check the inbox */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RegistrationAccepted"];
+                    };
+                };
                 403: components["responses"]["Error"];
                 409: components["responses"]["Error"];
                 422: components["responses"]["Error"];
@@ -81,7 +96,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sign in with email and password */
+        /**
+         * Sign in with email and password
+         * @description An account whose email isn't confirmed yet gets the same 401 INVALID_CREDENTIALS as a wrong password, so
+         *     registering and then signing in reveals nothing about other people's accounts. Failed attempts are limited per
+         *     client address and, more loosely, per email; successful sign-ins don't count.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -180,6 +200,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm an email address with the token from its link (does not sign in) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TokenRequest"];
+                };
+            };
+            responses: {
+                /** @description Email confirmed */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/verify-email/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a new confirmation link if the email has an unverified account (same answer either way) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmailRequest"];
+                };
+            };
+            responses: {
+                202: components["responses"]["Accepted"];
+                403: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Email a password reset link if the email has an account (same answer either way) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmailRequest"];
+                };
+            };
+            responses: {
+                202: components["responses"]["Accepted"];
+                403: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a new password with a reset link token; signs the account out everywhere */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordResetConfirm"];
+                };
+            };
+            responses: {
+                /** @description Password changed; sign in with the new password */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -203,7 +376,7 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        /** Permanently delete a normal account, its data, and all sessions */
+        /** Permanently delete a normal account, its data, and all sessions, after re-checking the password */
         delete: {
             parameters: {
                 query?: never;
@@ -211,7 +384,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AccountDeletion"];
+                };
+            };
             responses: {
                 /** @description Deleted */
                 204: {
@@ -223,6 +400,8 @@ export interface paths {
                 401: components["responses"]["Error"];
                 403: components["responses"]["Error"];
                 409: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+                429: components["responses"]["Error"];
             };
         };
         options?: never;
@@ -247,6 +426,87 @@ export interface paths {
                 422: components["responses"]["Error"];
             };
         };
+        trace?: never;
+    };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change the password after re-checking the current one; other sessions end and this one rotates */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordChange"];
+                };
+            };
+            responses: {
+                /** @description Password changed; fetch a new CSRF token before the next write */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+                429: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download every record stored for the account as JSON (an attachment) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The account's data */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountExport"];
+                    };
+                };
+                401: components["responses"]["Error"];
+                429: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/applications": {
@@ -1026,12 +1286,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the API and its database are reachable, for uptime monitoring through the app's origin */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The API and database are reachable */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Health"];
+                    };
+                };
+                /** @description The database is unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Health"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         ApiError: {
-            /** @description Stable code such as VALIDATION_ERROR, NOT_FOUND, UNAUTHENTICATED, CSRF_INVALID, DEMO_EXPIRED, APPLICATION_ARCHIVED, RATE_LIMITED */
+            /** @description Stable code such as VALIDATION_ERROR, NOT_FOUND, UNAUTHENTICATED, CSRF_INVALID, DEMO_EXPIRED, APPLICATION_ARCHIVED, RATE_LIMITED, INVALID_QUERY, PAYLOAD_TOO_LARGE, BUSY, EMAIL_NOT_VERIFIED, TOKEN_INVALID, DEMO_ACCOUNT */
             code: string;
             message: string;
             fieldErrors?: {
@@ -1043,6 +1348,10 @@ export interface components {
             /** @example X-CSRF-TOKEN */
             headerName: string;
             token: string;
+        };
+        Health: {
+            /** @enum {string} */
+            status: "UP" | "DOWN";
         };
         /** @enum {string} */
         AccountKind: "NORMAL" | "DEMO";
@@ -1057,12 +1366,55 @@ export interface components {
             timeZone: string;
             /** Format: date-time */
             demoExpiresAt: string | null;
+            /** @description Null for demo accounts. Until true, only the profile, export, deletion, and auth endpoints work. */
+            emailVerified: boolean | null;
         };
         RegisterRequest: {
             displayName: string;
             email: string;
+            /** @description Must not appear in a known data breach */
             password: string;
             timeZone: string;
+        };
+        RegistrationAccepted: {
+            /** @description The normalized address the link was sent to */
+            email: string;
+        };
+        TokenRequest: {
+            /** @description The token from the link's URL fragment */
+            token: string;
+        };
+        EmailRequest: {
+            email: string;
+        };
+        PasswordResetConfirm: {
+            token: string;
+            password: string;
+        };
+        PasswordChange: {
+            currentPassword: string;
+            newPassword: string;
+        };
+        AccountDeletion: {
+            password: string;
+        };
+        AccountExport: {
+            /** @constant */
+            format: "nextstep-export/1";
+            /** Format: date-time */
+            exportedAt: string;
+            account: {
+                [key: string]: unknown;
+            };
+            applications: {
+                [key: string]: unknown;
+            }[];
+            tasks: {
+                [key: string]: unknown;
+            }[];
+            interviews: {
+                [key: string]: unknown;
+            }[];
         };
         LoginRequest: {
             email: string;
@@ -1305,6 +1657,15 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["ApiError"];
+            };
+        };
+        /** @description Request accepted; the same answer whether or not the email has an account */
+        Accepted: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": Record<string, never>;
             };
         };
         /** @description Current account */

@@ -1,16 +1,29 @@
-import AxeBuilder from "@axe-core/playwright"
-
+import { expectNoAxeViolations, expectNoSidewaysScroll, expectVisibleFocus } from "./a11y"
 import { expect, test } from "./fixtures"
 import { startDemo, waitForData } from "./helpers"
 
-const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]
+// Signed-out pages and the heading each settles on. The link pages without a token explain how to get a new link.
+const SIGNED_OUT_PAGES: [string, string][] = [
+  ["/login", "Sign in"],
+  ["/register", "Create your workspace"],
+  ["/demo", "Try the demo"],
+  ["/forgot-password", "Reset your password"],
+  ["/resend-confirmation", "Get a new confirmation link"],
+  ["/verify-email", "This link is incomplete"],
+  ["/reset-password", "This link is incomplete"],
+]
 
 test("signed-out pages pass automated accessibility checks", async ({ page }) => {
-  for (const path of ["/login", "/register", "/demo"]) {
+  for (const [path, heading] of SIGNED_OUT_PAGES) {
     await page.goto(path)
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
-    const results = await new AxeBuilder({ page }).withTags(TAGS).analyze()
-    expect(results.violations, path).toEqual([])
+    await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible()
+    await expectNoAxeViolations(page, path)
+  }
+
+  for (const reason of ["verified", "password-reset", "deleted", "confirm-email"]) {
+    await page.goto("/login?reason=" + reason)
+    await expect(page.getByRole("status")).toBeVisible()
+    await expectNoAxeViolations(page, "/login?reason=" + reason)
   }
 })
 
@@ -20,20 +33,17 @@ test("workspace pages pass automated accessibility checks", async ({ page }) => 
     await page.goto(path)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await waitForData(page)
-    const results = await new AxeBuilder({ page }).withTags(TAGS).analyze()
-    expect(results.violations, path).toEqual([])
+    await expectNoAxeViolations(page, path)
   }
   await page.goto("/applications?search=Harbor")
   await page.getByRole("link", { name: "Harbor Labs" }).filter({ visible: true }).first().click()
   await expect(page.getByRole("heading", { level: 1, name: "Harbor Labs" })).toBeVisible()
   await waitForData(page)
-  const detail = await new AxeBuilder({ page }).withTags(TAGS).analyze()
-  expect(detail.violations, "application detail").toEqual([])
+  await expectNoAxeViolations(page, "application detail")
 
   await page.getByRole("button", { name: "Add task" }).click()
   await expect(page.getByRole("dialog")).toBeVisible()
-  const dialog = await new AxeBuilder({ page }).withTags(TAGS).analyze()
-  expect(dialog.violations, "task dialog").toEqual([])
+  await expectNoAxeViolations(page, "task dialog")
 
   // The application picker, opened from the task list, with its list of options showing.
   await page.goto("/tasks")
@@ -41,8 +51,17 @@ test("workspace pages pass automated accessibility checks", async ({ page }) => 
   await page.getByRole("combobox", { name: "Application" }).click()
   await expect(page.getByRole("option").first()).toBeVisible()
   await waitForData(page)
-  const picker = await new AxeBuilder({ page }).withTags(TAGS).analyze()
-  expect(picker.violations, "application picker").toEqual([])
+  await expectNoAxeViolations(page, "application picker")
+})
+
+test("keyboard users reach the password reset link from the sign-in form", async ({ page }) => {
+  await page.goto("/login")
+  await page.getByLabel("Password", { exact: true }).focus()
+  await page.keyboard.press("Tab")
+  await expectVisibleFocus(page.getByRole("link", { name: "Forgot password?" }))
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/forgot-password$/)
+  await expect(page.getByRole("heading", { level: 1, name: "Reset your password" })).toBeVisible()
 })
 
 test("keyboard users can skip navigation, use dialogs, and change status", async ({ page }) => {
@@ -76,10 +95,10 @@ test("keyboard users can skip navigation, use dialogs, and change status", async
 test("layouts fit a 320 px screen without sideways scrolling", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" })
   await page.setViewportSize({ width: 320, height: 720 })
-  for (const path of ["/login", "/register", "/demo"]) {
+  for (const [path, heading] of SIGNED_OUT_PAGES) {
     await page.goto(path)
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), path).toBeLessThanOrEqual(0)
+    await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible()
+    await expectNoSidewaysScroll(page, path)
   }
   await startDemo(page)
   for (const path of ["/dashboard", "/applications", "/tasks", "/interviews", "/settings", "/applications/new"]) {

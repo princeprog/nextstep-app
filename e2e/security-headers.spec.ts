@@ -4,7 +4,20 @@ import { startDemo } from "./helpers"
 /** The second production server from playwright.config.ts, started with APP_HTTPS=true. */
 const HTTPS_FLAG_ORIGIN = "http://localhost:3100"
 
-const PAGES = ["/login", "/register", "/demo", "/dashboard", "/applications", "/applications/new", "/tasks", "/no-such-page"]
+const PAGES = [
+  "/login",
+  "/register",
+  "/demo",
+  "/forgot-password",
+  "/resend-confirmation",
+  "/verify-email",
+  "/reset-password",
+  "/dashboard",
+  "/applications",
+  "/applications/new",
+  "/tasks",
+  "/no-such-page",
+]
 
 function parsePolicy(header: string | undefined) {
   const directives = new Map<string, string[]>()
@@ -70,7 +83,7 @@ test("HTTPS-only headers are sent only when APP_HTTPS=true", async ({ request })
 
 // The policyProblems fixture fails this test if the browser reports any CSP or Permissions-Policy problem.
 test("every page, dialog, menu, and toast works under the policy", async ({ page }) => {
-  for (const path of ["/login", "/register", "/demo"]) {
+  for (const path of ["/login", "/register", "/demo", "/forgot-password", "/resend-confirmation", "/verify-email", "/reset-password"]) {
     await page.goto(path)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
   }

@@ -2,9 +2,10 @@
 
 The authenticated web app for **NextStep**, a portfolio job-application tracker: a dashboard of what needs attention,
 application records with a six-stage pipeline, time-zone-aware tasks, interview records, search and filters, settings,
-and a temporary demo workspace with fictional data.
+accounts confirmed by email with password reset and change, a JSON download of every record, and a temporary demo
+workspace with fictional data.
 
-> Portfolio MVP. Password reset, email verification, hosting, and a production privacy policy are undecided.
+> Portfolio MVP. Hosting and the email provider are still undecided, and nothing is deployed.
 
 ## Related projects
 
@@ -27,6 +28,8 @@ and a temporary demo workspace with fictional data.
 
 - Node.js 24 and pnpm 11. CI uses Node 24; some dependencies require at least Node 22.19.
 - A running nextstep-api (see its README) for anything beyond the sign-in screens
+- For the end-to-end tests, [Mailpit](https://mailpit.axllent.org/), a local SMTP server with a web inbox (see
+  [End-to-end tests](#end-to-end-tests))
 
 ## Local setup
 
@@ -42,19 +45,56 @@ pnpm dev          # http://localhost:3000
 The browser only talks to this app's origin. Next.js forwards `/api/v1/*` to the API (a rewrite in `next.config.ts`),
 so the session cookie and CSRF token stay same-origin.
 
+A new account has to confirm its email before it can sign in. With the API's default `MAIL_MODE=log`, every email,
+including its link, is written to the API's log; open the link in the browser. To receive the emails instead, run
+Mailpit and start the API with `.\scripts\run-api.ps1 -Mailpit`; the inbox is at http://127.0.0.1:8025.
+
 ## Configuration
 
 | Variable | Read by | Purpose | Default |
 | --- | --- | --- | --- |
 | `API_ORIGIN` | `pnpm dev` at startup, `pnpm build` | Where `/api/v1` requests are forwarded. The build records it and `pnpm start` uses the recorded value, so rebuild after changing it. Never sent to the browser. | `http://127.0.0.1:8080` |
 | `APP_HTTPS` | the running server, on every request | Set to `true` when browsers reach the app over HTTPS, for example behind a TLS-terminating proxy. Adds `Strict-Transport-Security` and the CSP `upgrade-insecure-requests` directive. Leave it unset for plain HTTP, including local development. Server-side only; no rebuild needed. | unset |
+| `NEXT_PUBLIC_SITE_URL` | `pnpm build`, `pnpm dev` at startup | Address of the public website. The registration form links its Terms of use (`/terms/`) and Privacy policy (`/privacy/`), opened in the same tab. An `http://` or `https://` address; a folder path is allowed and a trailing slash is ignored. Public: the build copies it into the JavaScript sent to browsers, so rebuild after changing it. | `http://localhost:3001` |
 | `NEXTSTEP_OPENAPI` | `pnpm api:types` | OpenAPI file path or URL | `../nextstep-api/openapi/openapi.yaml` |
 | `E2E_BASE_URL` | Playwright | App URL under test | `http://localhost:3000` |
+| `MAILPIT_URL` | Playwright | Mailpit's HTTP API, where the tests read confirmation and reset emails | `http://127.0.0.1:8025` |
 | `PERF_BASE_URL` | `pnpm perf` | App URL to measure | `http://localhost:3000` |
 | `PERF_RUNS` | `pnpm perf` | Lighthouse runs per page; the median is reported | `1` |
 | `CHROME_PATH` | `pnpm perf` | Chromium-based browser for Lighthouse | Chrome, or Edge on Windows |
 
 No secrets are needed by the app. Don't put tokens in `NEXT_PUBLIC_*` variables or browser storage.
+
+## Accounts and email
+
+The API owns the account rules; these screens follow its contract (`../nextstep-api/openapi/openapi.yaml`).
+
+- **Registration** (`/register`) ends on a "Check your email" screen showing the address the API used, with
+  **Resend email**, a way to correct a mistyped address, and a sign-in link. The API answers the same way whether or not
+  the address already has an account, and the screen never says which. The form links the public site's Terms of use
+  and Privacy policy (`NEXT_PUBLIC_SITE_URL`). New passwords need 12 to 128 characters and are refused if they appear in
+  a data breach. Registering an address that isn't confirmed yet again replaces its name, password, and time zone and
+  sends a new link; older links stop working once that email is sent.
+- **Email links** (`/verify-email#token=…`, `/reset-password#token=…`) carry their token in the URL fragment, which
+  browsers never send to a server. The page reads it once, removes it from the address bar with
+  `history.replaceState`, and waits for a button press, because link scanners open pages. A newer link opened in the
+  same tab starts over.
+- **Confirming** (`/verify-email`) doesn't sign anyone in; the page then offers **Sign in**. A used, replaced, or expired
+  link, or one without its token, says so and offers a new link.
+- **Signing in before confirming** is refused with the same "Email or password is incorrect." as a wrong password, so
+  sign-in never reveals which addresses have accounts. Under every refusal, the sign-in page says that a new account
+  confirms its email first and links to `/resend-confirmation` for a new link. A request refused with
+  `403 EMAIL_NOT_VERIFIED` could only come from a session started before sign-in required a confirmed email; the app
+  treats it like an ended session, signs out, and opens sign-in with a notice to confirm the email first. The API
+  deletes accounts that stay unconfirmed for 7 days.
+- **Password reset**: `/forgot-password` always ends with the same message, whether or not an account uses the address.
+  `/reset-password` sets the new password, which ends every session of the account and this browser's session, so the
+  app clears private data and its CSRF token, then offers sign-in.
+- **Settings** for normal accounts: change the password (other devices are signed out, and this session's CSRF token
+  is replaced), download every record as JSON (`/api/v1/me/export`, also offered to demos), and delete the account
+  after entering its password. Demos see neither the password card nor deletion.
+- **Sign-in messages** say why the page opened: `?reason=verified`, `password-reset`, `deleted`, `signed-out`,
+  `expired`, `demo-expired`, or `confirm-email`.
 
 ## Commands
 
@@ -65,33 +105,50 @@ pnpm typecheck      # next typegen + tsc
 pnpm test           # Vitest unit and component tests
 pnpm build
 pnpm start          # serve the production build on :3000
-pnpm test:e2e       # Playwright; needs a build and a running API
+pnpm test:e2e       # Playwright; needs a build, a running API, and Mailpit (see below)
 pnpm perf           # Lighthouse mobile lab check; needs a build and a running API
 pnpm api:types      # regenerate src/lib/api/schema.d.ts after an API contract change
 ```
 
 ### End-to-end tests
 
-End-to-end tests run against the production build and a real API. They create several accounts and demos per run, so
-start the API with relaxed local limits:
+End-to-end tests run against the production build, a real API, and real email captured by Mailpit. The helpers in
+`e2e/helpers.ts` register through the form, read the confirmation email from Mailpit's API (`e2e/mailpit.ts`), open
+its link, confirm, and sign in. Every account gets a new random password, because the API refuses passwords found in
+Have I Been Pwned. A run creates many accounts and demos, so start the API with relaxed local limits and Mailpit:
 
 ```powershell
+# Mailpit: web inbox and API on 127.0.0.1:8025, SMTP on 127.0.0.1:1025
+# (on the owner's machine: %LOCALAPPDATA%\NextStep\tools\mailpit\mailpit.exe)
+mailpit --listen 127.0.0.1:8025 --smtp 127.0.0.1:1025
 # In ..\nextstep-api
-.\scripts\run-api.ps1 -RelaxedLimits
+.\scripts\db-dev.ps1 start
+.\scripts\run-api.ps1 -RelaxedLimits -Mailpit
 # In this folder (first time: pnpm exec playwright install chromium)
 pnpm build
 pnpm test:e2e
 ```
 
+`-RelaxedLimits` also raises the API's hourly email allowance (`EMAIL_GLOBAL_LIMIT_PER_HOUR`), which counts every email
+sent and every registration, resend, and reset request, so repeated runs keep receiving their emails. If the build used
+`NEXT_PUBLIC_SITE_URL`, run the tests with the same value.
+
 Playwright starts two servers from the same build: `pnpm start` on :3000 for the tests, and one on :3100 with
 `APP_HTTPS=true` that only the HTTPS header check uses. Locally, servers that are already running are reused.
 
 They cover the full journey (register → application → applied date → task → interview → status → dashboard → complete
-→ archive → restore), validation that keeps entered values, account and demo isolation, sign-out (from the sidebar,
-from settings, and after a dialog was used), account deletion, session expiry, URL list state with back and forward
-(including a filter changed while a search is still being typed), the application picker finding an application beyond
-the first page of results, security headers, axe accessibility scans, keyboard use, and 320 px layouts. Every test fails
-if the browser reports a Content Security Policy or Permissions-Policy problem.
+→ archive → restore), registration with email confirmation (the check-email screen, which looks the same for a taken
+address; resend, after which only the newest link works; sign-in before confirming, refused exactly like a wrong
+password, then accepted; registering again before confirming, after which only the newest password works; the form for
+a new link that the sign-in hint leads to; a request refused for an unconfirmed email, which signs out), forgot and
+reset password (the same message for an unknown address, a reset that signs out another browser, a link that works
+once), a password change that signs out another browser while this one keeps working, the data download checked through
+the browser's download, account deletion with the password, the Terms and Privacy links, validation that keeps entered
+values, account and demo isolation, sign-out (from the sidebar, from settings, and after a dialog was used), session
+expiry, URL list state with back and forward (including a filter changed while a search is still being typed), the
+application picker finding an application beyond the first page of results, security headers, axe accessibility scans,
+keyboard use, and 320 px layouts, which include every account screen. Every test fails if the browser reports a Content
+Security Policy or Permissions-Policy problem.
 
 ### Lab performance
 
@@ -141,10 +198,12 @@ runs except on `main`.
   - **checks**: `pnpm install --frozen-lockfile`, lint, typecheck, unit tests, and build.
   - **e2e**: checks out `princeprog/nextstep-api` at `main`, sets up Temurin JDK 25, installs the PostgreSQL 18 server
     binaries from the PGDG apt repository, and starts a throwaway cluster on 127.0.0.1 as the runner user with
-    generated passwords. It builds the API with `./mvnw -B -DskipTests package`, starts the jar in the background with
-    relaxed rate limits, and waits for `/api/v1/auth/csrf`. Then it builds the app, installs Playwright Chromium with
-    its system dependencies, and runs `pnpm test:e2e`. On failure it uploads the Playwright report, traces, and the
-    API and PostgreSQL logs for 7 days.
+    generated passwords. It downloads Mailpit v1.33.0, checks it against a pinned SHA-256, and starts it on
+    127.0.0.1:8025 (SMTP on 1025). It builds the API with `./mvnw -B -DskipTests package`, starts the jar in the
+    background with relaxed rate limits (the hourly email allowance included) and email sent to Mailpit, and waits for
+    `/api/v1/auth/csrf`. Then it builds the app, installs Playwright Chromium with its system dependencies, and runs
+    `pnpm test:e2e`. On failure it uploads the Playwright report, traces, and the API, PostgreSQL, and Mailpit logs for
+    7 days.
 - `.github/workflows/security.yml` runs on every push and pull request, and weekly on Mondays.
   - `pnpm audit --audit-level high` fails on high or critical advisories.
   - OSV-Scanner checks `pnpm-lock.yaml`. Reviewed exceptions are in `osv-scanner.toml`, each with a reason and an expiry
@@ -159,7 +218,7 @@ runs except on `main`.
 ## How it's organized
 
 ```
-src/app/(auth)/        sign-in, register, demo pages
+src/app/(auth)/        sign-in, register, demo, email confirmation, and password reset pages
 src/app/(app)/         dashboard, applications, tasks, interviews, settings (inside the app shell)
 src/features/          feature components and data hooks (TanStack Query)
 src/components/        shared pieces; src/components/ui holds shadcn components
@@ -167,7 +226,7 @@ src/lib/api/           same-origin client (CSRF, error normalization), generated
 src/lib/               formatting, time zones, URL page parsing, security headers
 src/proxy.ts           per-request Content-Security-Policy (and HSTS when APP_HTTPS=true)
 src/stores/            Zustand UI store
-e2e/                   Playwright tests (e2e/fixtures.ts adds the CSP check to every test)
+e2e/                   Playwright tests (e2e/fixtures.ts adds the CSP check to every test; e2e/mailpit.ts reads emails)
 scripts/               API type generation, Lighthouse lab check
 .github/               CI, security scanning, Dependabot
 ```

@@ -3,7 +3,8 @@
 import { TriangleAlertIcon } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 
 import { errorProps, FieldErrorText } from "@/components/field-error-text"
 import { TimeZoneSelect } from "@/components/time-zone-select"
@@ -13,10 +14,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
-import { isApiError } from "@/lib/api/errors"
+import { errorMessage, isApiError } from "@/lib/api/errors"
+import { PRIVACY_URL, TERMS_URL } from "@/lib/site"
 import { useBrowserTimeZone } from "@/lib/time"
 
 import { useMe, useRegister } from "./api"
+import { CheckEmail } from "./check-email"
+import { NEW_PASSWORD_HINT } from "./password-rules"
+
+// Links inside a sentence are underlined, so they don't depend on color.
+const inlineLink = "font-medium text-primary underline underline-offset-4"
 
 export function RegisterForm() {
   const router = useRouter()
@@ -27,6 +34,10 @@ export function RegisterForm() {
   const form = { ...values, timeZone: values.timeZone || detectedZone }
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
+  // The normalized address the API emailed, once registration is accepted.
+  const [sentTo, setSentTo] = useState<string | null>(null)
+  const emailInput = useRef<HTMLInputElement>(null)
+  const checkEmailHeading = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
     if (me.data) {
@@ -41,16 +52,32 @@ export function RegisterForm() {
     setFieldErrors({})
     setFormError(null)
     try {
-      await register.mutateAsync(form)
-      router.replace("/dashboard")
+      const accepted = await register.mutateAsync(form)
+      // No session starts. Everything but the password is kept in case the address needs fixing.
+      flushSync(() => {
+        setForm((current) => ({ ...current, password: "" }))
+        setSentTo(accepted.email)
+      })
+      checkEmailHeading.current?.focus()
     } catch (error) {
       setForm((current) => ({ ...current, password: "" }))
-      if (isApiError(error) && Object.keys(error.fieldErrors).length > 0) {
+      if (isApiError(error) && error.code === "ALREADY_SIGNED_IN") {
+        router.replace("/dashboard")
+      } else if (isApiError(error) && Object.keys(error.fieldErrors).length > 0) {
         setFieldErrors(error.fieldErrors)
       } else {
-        setFormError(isApiError(error) ? error.message : "Something went wrong. Try again.")
+        setFormError(errorMessage(error))
       }
     }
+  }
+
+  function changeEmail() {
+    flushSync(() => setSentTo(null))
+    emailInput.current?.focus()
+  }
+
+  if (sentTo) {
+    return <CheckEmail email={sentTo} headingRef={checkEmailHeading} onChangeEmail={changeEmail} />
   }
 
   const name = errorProps(fieldErrors, "displayName")
@@ -83,7 +110,7 @@ export function RegisterForm() {
             </Field>
             <Field data-invalid={email.invalid || undefined}>
               <FieldLabel htmlFor="email">Email</FieldLabel>
-              <Input id="email" type="email" autoComplete="email" value={form.email}
+              <Input id="email" ref={emailInput} type="email" autoComplete="email" value={form.email}
                 onChange={(event) => set("email")(event.target.value)} {...email.controlProps} />
               <FieldErrorText id={email.errorId} message={email.message} />
             </Field>
@@ -93,7 +120,7 @@ export function RegisterForm() {
                 onChange={(event) => set("password")(event.target.value)}
                 aria-invalid={password.invalid || undefined}
                 aria-describedby={"password-hint" + (password.invalid ? " " + password.errorId : "")} />
-              <FieldDescription id="password-hint">Use 12 to 128 characters. A short phrase works well.</FieldDescription>
+              <FieldDescription id="password-hint">{NEW_PASSWORD_HINT}</FieldDescription>
               <FieldErrorText id={password.errorId} message={password.message} />
             </Field>
             <Field data-invalid={zone.invalid || undefined}>
@@ -106,22 +133,23 @@ export function RegisterForm() {
           </FieldGroup>
         </CardContent>
         <CardFooter className="mt-6 flex flex-col items-stretch gap-3">
-          <Button type="submit" size="lg" disabled={register.isPending}>
+          <Button type="submit" size="lg" disabled={register.isPending} focusableWhenDisabled>
             {register.isPending ? <Spinner data-icon="inline-start" /> : null}
             Create account
           </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            By creating an account, you agree to the{" "}
+            <a className={inlineLink} href={TERMS_URL}>Terms of use</a>. Read how your data is handled in the{" "}
+            <a className={inlineLink} href={PRIVACY_URL}>Privacy policy</a>.
+          </p>
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link className="font-medium text-primary underline-offset-4 hover:underline" href="/login">
               Sign in
             </Link>
           </p>
-          <p className="text-center text-xs text-muted-foreground">
-            This is a portfolio project. Password reset and email verification are not available yet.
-          </p>
         </CardFooter>
       </form>
     </Card>
   )
 }
-

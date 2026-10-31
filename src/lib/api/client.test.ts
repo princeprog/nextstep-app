@@ -104,5 +104,39 @@ describe("api client", () => {
     expect(error.isNetwork).toBe(true)
     expect(error.message).toMatch(/couldn't reach/)
   })
+
+  it("treats a refusal for an unconfirmed email like an ended session, and no other refusal", async () => {
+    const listener = vi.fn()
+    onSessionEnded(listener)
+    responses.push(
+      csrfResponse("before"),
+      () => json(403, { code: "FORBIDDEN", message: "You don't have access to this action." }),
+      () => json(403, { code: "EMAIL_NOT_VERIFIED", message: "Confirm your email address to use your workspace." }),
+      csrfResponse("after"),
+      () => new Response(null, { status: 204 }),
+    )
+
+    await api.post("/applications", { company: "Acme" }).catch(() => undefined)
+    expect(listener).not.toHaveBeenCalled()
+    const error = (await api.get("/dashboard").catch((cause) => cause)) as ApiError
+    expect(error.isEmailNotVerified).toBe(true)
+    expect(listener).toHaveBeenCalledExactlyOnceWith(error)
+
+    // Its CSRF token was dropped too, so signing out fetches a fresh one.
+    await api.post("/auth/logout")
+    expect(calls[3].url).toBe("/api/v1/auth/csrf")
+    expect(header(calls[4], "X-CSRF-TOKEN")).toBe("after")
+  })
+
+  it("sends a JSON body with DELETE, for account deletion with a password", async () => {
+    responses.push(csrfResponse("t"), () => new Response(null, { status: 204 }))
+
+    await api.delete("/me", { password: "correct horse battery" })
+
+    expect(calls[1].init.method).toBe("DELETE")
+    expect(calls[1].init.body).toBe(JSON.stringify({ password: "correct horse battery" }))
+    expect(header(calls[1], "Content-Type")).toBe("application/json")
+    expect(header(calls[1], "X-CSRF-TOKEN")).toBe("t")
+  })
 })
 

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { errorProps, FieldErrorText } from "@/components/field-error-text"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -21,7 +21,12 @@ const REASONS: Record<string, string> = {
   "demo-expired": "That demo has expired. Start a new demo or sign in.",
   "signed-out": "You've signed out.",
   deleted: "Your account and its data were deleted.",
+  verified: "Your email address is confirmed. Sign in to start using NextStep.",
+  "password-reset": "Your password was changed and every device was signed out. Sign in with your new password.",
+  "confirm-email": "Confirm your email address first, then sign in. The link is in your inbox.",
 }
+
+const RESEND_CONFIRMATION = "/resend-confirmation"
 
 /** `reason` comes from the ?reason= query parameter set when another page sends the user here. */
 export function SignInForm({ reason }: { reason: string | null }) {
@@ -32,6 +37,9 @@ export function SignInForm({ reason }: { reason: string | null }) {
   const [password, setPassword] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
+  // An unconfirmed account is refused exactly like a wrong password, so the hint about confirming first is shown for
+  // every refusal and says nothing about any account.
+  const [refused, setRefused] = useState(false)
   const notice = reason && Object.hasOwn(REASONS, reason) ? REASONS[reason] : null
 
   useEffect(() => {
@@ -44,6 +52,7 @@ export function SignInForm({ reason }: { reason: string | null }) {
     event.preventDefault()
     setFieldErrors({})
     setFormError(null)
+    setRefused(false)
     try {
       await signIn.mutateAsync({ email, password })
       router.replace("/dashboard")
@@ -56,6 +65,7 @@ export function SignInForm({ reason }: { reason: string | null }) {
       if (isApiError(error) && error.code === "VALIDATION_ERROR") {
         setFieldErrors(error.fieldErrors)
       } else {
+        setRefused(isApiError(error) && error.code === "INVALID_CREDENTIALS")
         setFormError(isApiError(error) ? error.message : "Something went wrong. Try again.")
       }
     }
@@ -77,13 +87,27 @@ export function SignInForm({ reason }: { reason: string | null }) {
           {notice ? (
             <Alert role="status">
               <InfoIcon />
-              <AlertDescription>{notice}</AlertDescription>
+              <AlertDescription>
+                {notice}
+                {reason === "confirm-email" ? (
+                  <>
+                    {" "}
+                    <Link href={RESEND_CONFIRMATION}>Get a new confirmation link</Link>
+                  </>
+                ) : null}
+              </AlertDescription>
             </Alert>
           ) : null}
           {formError ? (
             <Alert variant="destructive">
               <TriangleAlertIcon />
-              <AlertDescription>{formError}</AlertDescription>
+              <AlertTitle>{formError}</AlertTitle>
+              {refused ? (
+                <AlertDescription>
+                  Just created your account? Confirm your email first; the link is in your inbox.{" "}
+                  <Link href={RESEND_CONFIRMATION}>Get a new confirmation link</Link>
+                </AlertDescription>
+              ) : null}
             </Alert>
           ) : null}
           <FieldGroup>
@@ -98,11 +122,16 @@ export function SignInForm({ reason }: { reason: string | null }) {
               <Input id="password" type="password" autoComplete="current-password" required value={password}
                 onChange={(event) => setPassword(event.target.value)} {...passwordError.controlProps} />
               <FieldErrorText id={passwordError.errorId} message={passwordError.message} />
+              <p className="text-sm">
+                <Link className="font-medium text-primary underline-offset-4 hover:underline" href="/forgot-password">
+                  Forgot password?
+                </Link>
+              </p>
             </Field>
           </FieldGroup>
         </CardContent>
         <CardFooter className="mt-6 flex flex-col items-stretch gap-3">
-          <Button type="submit" size="lg" disabled={signIn.isPending}>
+          <Button type="submit" size="lg" disabled={signIn.isPending} focusableWhenDisabled>
             {signIn.isPending ? <Spinner data-icon="inline-start" /> : null}
             Sign in
           </Button>

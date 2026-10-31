@@ -8,7 +8,9 @@ import type { CsrfToken } from "./types"
  * - Unsafe requests carry the CSRF token, kept only in memory.
  * - A CSRF failure clears the token so the next attempt fetches a fresh one. Mutations are never replayed
  *   automatically; the user retries on purpose.
- * - A 401 that means "session ended" notifies the registered listener so the app can clear private data.
+ * - A 401 that means "session ended" notifies the registered listener so the app can clear private data. So does a
+ *   403 for an unconfirmed email: sign-in requires a confirmed email, so only a session from before that rule can get
+ *   one, and it is treated as ended.
  */
 
 const BASE = "/api/v1"
@@ -22,7 +24,10 @@ export function onSessionEnded(listener: SessionEndedListener | null) {
   sessionEndedListener = listener
 }
 
-/** Forget the CSRF token, for example after sign-in, sign-out, or demo entry rotated it on the server. */
+/**
+ * Forget the CSRF token, for example after sign-in, sign-out, demo entry, a password change, or a password reset
+ * rotated or ended the session on the server.
+ */
 export function resetCsrf() {
   csrf = null
   csrfRequest = null
@@ -113,7 +118,7 @@ async function request<T>(method: string, path: string, options: RequestOptions 
     if (error.isCsrf) {
       resetCsrf()
     }
-    if (error.isSessionEnded) {
+    if (error.isSessionEnded || error.isEmailNotVerified) {
       resetCsrf()
       sessionEndedListener?.(error)
     }
@@ -126,6 +131,6 @@ export const api = {
   get: <T>(path: string, options?: RequestOptions) => request<T>("GET", path, options),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, { body }),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, { body }),
-  delete: (path: string) => request<void>("DELETE", path),
+  delete: (path: string, body?: unknown) => request<void>("DELETE", path, { body }),
 }
 

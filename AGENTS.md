@@ -51,9 +51,29 @@ Product requirements, rules, and decisions live in the owner's local Obsidian va
 - After API contract changes, run `pnpm api:types` and commit the regenerated `schema.d.ts`.
 - Pick applications with `ApplicationPicker`, which searches through the API (`useApplicationSearch`); don't load a fixed
   page of applications into a select.
-- Leave the workspace on purpose (sign-out, account deletion) through `useExitWorkspace` from `src/components/app-shell.tsx`.
+- Leave the workspace on purpose (sign-out, account deletion) through `useExitWorkspace` from `src/components/exit-workspace.tsx`.
   It clears private data once and ignores 401 responses from requests still in flight.
+- Buttons that stay on screen while their request runs (resend, save, change password) pass `focusableWhenDisabled` with
+  `disabled`, so keyboard focus stays on them instead of jumping to the page.
 - Keep 320 px layouts, keyboard access, visible focus, and reduced motion working. Private pages stay noindex.
+
+## Accounts and email links
+
+- Never reveal whether an email has an account. Registration, resend, and reset requests end on the same screen or
+  message whatever the API knows, and sign-in refuses an unconfirmed account exactly like a wrong password (the
+  confirm-first hint shows under every refusal). Don't add copy or behavior that differs by case.
+- Email links carry a one-time token in the URL fragment. Read it only with `useLinkToken`
+  (`src/features/auth/link-token.ts`), which removes it from the address bar. Don't move it into a query string, a log,
+  or storage, and act on it only after the person presses the button (link scanners load pages).
+- Unconfirmed accounts can't sign in, so the workspace never waits for a confirmation. A `403 EMAIL_NOT_VERIFIED` can only
+  reach a session started before that rule; the client reports it like an ended session (`onSessionEnded` in
+  `src/lib/api/client.ts`), and the shell signs out on the server and opens `/login?reason=confirm-email`.
+- A password change rotates the session's CSRF token: call `resetCsrf()`. A reset ends this browser's session: clear private
+  state with `useClearPrivateState`.
+- New-password fields use `autocomplete="new-password"` and `NEW_PASSWORD_HINT`; fields that re-check a password use
+  `autocomplete="current-password"`.
+- Links to the public website (Terms of use, Privacy policy) come from `src/lib/site.ts` (`NEXT_PUBLIC_SITE_URL`, fixed at
+  build time) and open in the same tab.
 
 ## Security headers
 
@@ -69,9 +89,17 @@ Product requirements, rules, and decisions live in the owner's local Obsidian va
 
 ```powershell
 pnpm lint; pnpm typecheck; pnpm test; pnpm build
-pnpm test:e2e     # with ..\nextstep-api\scripts\run-api.ps1 -RelaxedLimits running
+# End-to-end tests need Mailpit (mailpit --listen 127.0.0.1:8025 --smtp 127.0.0.1:1025) and the API started with
+# ..\nextstep-api\scripts\run-api.ps1 -RelaxedLimits -Mailpit
+pnpm test:e2e
 pnpm perf         # optional Lighthouse lab check; needs the build and the API
 ```
+
+In end-to-end tests, create accounts with `createAccount` (or `register`, `confirmEmail`, and `signIn`) from
+`e2e/helpers.ts`, read emails through `e2e/mailpit.ts`, and give every account a password from `strongPassword()`. The
+API refuses passwords found in Have I Been Pwned, so never use a fixed one. An account signs in only after
+`confirmEmail`; check an expected refusal with `refusedSignIn`. Run `checkScreen` from `e2e/a11y.ts` (axe and 320 px)
+on new screens, and check their keyboard path.
 
 CI runs the same checks plus the end-to-end suite against nextstep-api `main` (`.github/workflows/ci.yml`).
 `.github/workflows/security.yml` runs `pnpm audit --audit-level high`, OSV-Scanner, and gitleaks. Add an OSV exception to

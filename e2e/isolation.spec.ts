@@ -1,17 +1,17 @@
 import { expect, test, watchPolicyProblems } from "./fixtures"
-import { createApplication, register, startDemo } from "./helpers"
+import { createAccount, createApplication, startDemo } from "./helpers"
 
 test("one account cannot see another account's application", async ({ browser }) => {
   const ownerContext = await browser.newContext()
   const ownerProblems = await watchPolicyProblems(ownerContext)
   const owner = await ownerContext.newPage()
-  await register(owner, "Owner")
+  await createAccount(owner, "Owner")
   const id = await createApplication(owner, "Private Owner Co")
 
   const otherContext = await browser.newContext()
   const otherProblems = await watchPolicyProblems(otherContext)
   const other = await otherContext.newPage()
-  await register(other, "Someone Else")
+  await createAccount(other, "Someone Else")
   await other.goto("/applications/" + id)
   await expect(other.getByRole("heading", { name: "Application not found" })).toBeVisible()
   await expect(other.getByText("Private Owner Co")).toHaveCount(0)

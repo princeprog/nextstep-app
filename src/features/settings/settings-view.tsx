@@ -4,8 +4,7 @@ import { LogOutIcon, TriangleAlertIcon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { useExitWorkspace } from "@/components/app-shell"
-import { ConfirmDialog } from "@/components/confirm-dialog"
+import { useExitWorkspace } from "@/components/exit-workspace"
 import { errorProps, FieldErrorText } from "@/components/field-error-text"
 import { PageHeader } from "@/components/page-header"
 import { TimeZoneSelect } from "@/components/time-zone-select"
@@ -15,21 +14,29 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
-import { useDeleteAccount, useMe, useSignOut, useUpdateProfile } from "@/features/auth/api"
+import { useChangePassword, useMe, useSignOut, useUpdateProfile } from "@/features/auth/api"
+import { NEW_PASSWORD_HINT } from "@/features/auth/password-rules"
 import { errorMessage, isApiError } from "@/lib/api/errors"
 import type { Me } from "@/lib/api/types"
+
+import { DeleteAccountDialog } from "./delete-account-dialog"
+import { ExportDataLink } from "./export-data-link"
 
 export function SettingsView() {
   const me = useMe()
   if (!me.data) {
     return null
   }
+  // Demo workspaces have no password and no permanent account.
+  const normal = me.data.kind === "NORMAL"
   return (
     <>
       <PageHeader title="Settings" description="Your profile and account." />
       <ProfileCard me={me.data} />
+      {normal ? <PasswordCard me={me.data} /> : null}
+      <DataCard me={me.data} />
       <SessionCard me={me.data} />
-      {me.data.kind === "NORMAL" ? <DeleteAccountCard me={me.data} /> : null}
+      {normal ? <DeleteAccountCard me={me.data} /> : null}
     </>
   )
 }
@@ -88,12 +95,109 @@ function ProfileCard({ me }: { me: Me }) {
           </FieldGroup>
         </CardContent>
         <CardFooter className="mt-6">
-          <Button type="submit" disabled={update.isPending}>
+          <Button type="submit" disabled={update.isPending} focusableWhenDisabled>
             {update.isPending ? <Spinner data-icon="inline-start" /> : null}
             Save profile
           </Button>
         </CardFooter>
       </form>
+    </Card>
+  )
+}
+
+function PasswordCard({ me }: { me: Me }) {
+  const change = useChangePassword()
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [formError, setFormError] = useState<string | null>(null)
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFieldErrors({})
+    setFormError(null)
+    try {
+      await change.mutateAsync({ currentPassword, newPassword })
+      setCurrentPassword("")
+      setNewPassword("")
+      toast.success("Password changed. Other devices were signed out.")
+    } catch (error) {
+      if (isApiError(error) && Object.keys(error.fieldErrors).length > 0) {
+        setFieldErrors(error.fieldErrors)
+        // Clear only what was wrong, so a refused new password doesn't mean typing the current one again.
+        if (error.fieldErrors.currentPassword) {
+          setCurrentPassword("")
+        }
+        if (error.fieldErrors.newPassword) {
+          setNewPassword("")
+        }
+      } else {
+        setFormError(errorMessage(error))
+      }
+    }
+  }
+
+  const current = errorProps(fieldErrors, "currentPassword")
+  const next = errorProps(fieldErrors, "newPassword")
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle><h2>Password</h2></CardTitle>
+        <CardDescription>Changing your password signs out your other devices. You stay signed in here.</CardDescription>
+      </CardHeader>
+      <form onSubmit={onSubmit} noValidate>
+        <CardContent className="flex flex-col gap-4">
+          {formError ? (
+            <Alert variant="destructive">
+              <TriangleAlertIcon />
+              <AlertDescription>{formError}</AlertDescription>
+            </Alert>
+          ) : null}
+          {/* Lets password managers update the saved password for this account. */}
+          <input type="text" name="username" autoComplete="username" value={me.email ?? ""} readOnly hidden />
+          <FieldGroup>
+            <Field data-invalid={current.invalid || undefined}>
+              <FieldLabel htmlFor="currentPassword">Current password</FieldLabel>
+              <Input id="currentPassword" type="password" autoComplete="current-password" value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)} {...current.controlProps} />
+              <FieldErrorText id={current.errorId} message={current.message} />
+            </Field>
+            <Field data-invalid={next.invalid || undefined}>
+              <FieldLabel htmlFor="newPassword">New password</FieldLabel>
+              <Input id="newPassword" type="password" autoComplete="new-password" value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                aria-invalid={next.invalid || undefined}
+                aria-describedby={"newPassword-hint" + (next.invalid ? " " + next.errorId : "")} />
+              <FieldDescription id="newPassword-hint">{NEW_PASSWORD_HINT}</FieldDescription>
+              <FieldErrorText id={next.errorId} message={next.message} />
+            </Field>
+          </FieldGroup>
+        </CardContent>
+        <CardFooter className="mt-6">
+          <Button type="submit" disabled={change.isPending} focusableWhenDisabled>
+            {change.isPending ? <Spinner data-icon="inline-start" /> : null}
+            Change password
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
+  )
+}
+
+function DataCard({ me }: { me: Me }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle><h2>Your data</h2></CardTitle>
+        <CardDescription>
+          {me.kind === "DEMO"
+            ? "Download this demo's fictional records as a JSON file: its profile and every application, task, and interview, including archived ones."
+            : "Download everything stored for your account as a JSON file: your profile and every application, task, and interview, including archived ones."}
+        </CardDescription>
+      </CardHeader>
+      <CardFooter>
+        <ExportDataLink />
+      </CardFooter>
     </Card>
   )
 }
@@ -123,13 +227,7 @@ function SessionCard({ me }: { me: Me }) {
 }
 
 function DeleteAccountCard({ me }: { me: Me }) {
-  const remove = useDeleteAccount()
-  const exitWorkspace = useExitWorkspace()
   const [open, setOpen] = useState(false)
-  const [confirmation, setConfirmation] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const matches = confirmation.trim().toLowerCase() === (me.email ?? "").toLowerCase()
-
   return (
     <Card className="border-destructive/30">
       <CardHeader>
@@ -139,42 +237,11 @@ function DeleteAccountCard({ me }: { me: Me }) {
         </CardDescription>
       </CardHeader>
       <CardFooter>
-        <Button variant="destructive" onClick={() => { setConfirmation(""); setError(null); setOpen(true) }}>
+        <Button variant="destructive" onClick={() => setOpen(true)}>
           Delete account…
         </Button>
       </CardFooter>
-      <ConfirmDialog
-        open={open}
-        onOpenChange={setOpen}
-        title="Delete your account permanently?"
-        description="All of your job-search data will be deleted. Type your email address to confirm."
-        confirmLabel="Delete account"
-        destructive
-        confirmDisabled={!matches}
-        onConfirm={async () => {
-          setError(null)
-          try {
-            await remove.mutateAsync()
-            void exitWorkspace("/login?reason=deleted")
-          } catch (cause) {
-            setError(errorMessage(cause))
-            throw cause
-          }
-        }}
-      >
-        <Field>
-          <FieldLabel htmlFor="delete-confirmation">Email address</FieldLabel>
-          <Input id="delete-confirmation" autoComplete="off" value={confirmation}
-            onChange={(e) => setConfirmation(e.target.value)} />
-        </Field>
-        {error ? (
-          <Alert variant="destructive">
-            <TriangleAlertIcon />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-      </ConfirmDialog>
+      <DeleteAccountDialog email={me.email ?? ""} open={open} onOpenChange={setOpen} />
     </Card>
   )
 }
-

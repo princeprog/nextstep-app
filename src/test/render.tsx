@@ -3,14 +3,16 @@ import { render } from "@testing-library/react"
 import type { ReactNode } from "react"
 
 import { keys } from "@/lib/api/keys"
+import type { Me } from "@/lib/api/types"
 
-export const TEST_ME = {
+export const TEST_ME: Me = {
   id: "user-1",
   kind: "NORMAL",
   displayName: "Ana Cruz",
   email: "ana@example.com",
   timeZone: "Asia/Manila",
   demoExpiresAt: null,
+  emailVerified: true,
 }
 
 /**
