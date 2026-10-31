@@ -1,14 +1,15 @@
-import { expect, test } from "@playwright/test"
-
+import { expect, test, watchPolicyProblems } from "./fixtures"
 import { createApplication, register, startDemo } from "./helpers"
 
 test("one account cannot see another account's application", async ({ browser }) => {
   const ownerContext = await browser.newContext()
+  const ownerProblems = await watchPolicyProblems(ownerContext)
   const owner = await ownerContext.newPage()
   await register(owner, "Owner")
   const id = await createApplication(owner, "Private Owner Co")
 
   const otherContext = await browser.newContext()
+  const otherProblems = await watchPolicyProblems(otherContext)
   const other = await otherContext.newPage()
   await register(other, "Someone Else")
   await other.goto("/applications/" + id)
@@ -19,10 +20,12 @@ test("one account cannot see another account's application", async ({ browser })
 
   await ownerContext.close()
   await otherContext.close()
+  expect([...ownerProblems, ...otherProblems]).toEqual([])
 })
 
 test("two demo visitors get separate workspaces", async ({ browser }) => {
   const firstContext = await browser.newContext()
+  const firstProblems = await watchPolicyProblems(firstContext)
   const first = await firstContext.newPage()
   await startDemo(first)
   await expect(first.getByRole("note")).toContainText("temporary demo with fictional data")
@@ -34,6 +37,7 @@ test("two demo visitors get separate workspaces", async ({ browser }) => {
   await expect(first.getByText("Harbor Labs moved to Offer")).toBeVisible()
 
   const secondContext = await browser.newContext()
+  const secondProblems = await watchPolicyProblems(secondContext)
   const second = await secondContext.newPage()
   await startDemo(second)
   await second.goto("/applications/" + harborId)
@@ -45,5 +49,6 @@ test("two demo visitors get separate workspaces", async ({ browser }) => {
 
   await firstContext.close()
   await secondContext.close()
+  expect([...firstProblems, ...secondProblems]).toEqual([])
 })
 

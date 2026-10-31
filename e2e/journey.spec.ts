@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test"
-
+import { expect, test } from "./fixtures"
 import { card, manilaDate, register, watchDialogs } from "./helpers"
 
 test("a new user tracks an application from first save to dashboard, archive, and restore", async ({ page }) => {

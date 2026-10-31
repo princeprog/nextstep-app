@@ -4,8 +4,9 @@ import { TriangleAlertIcon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { ApplicationSelect } from "@/components/application-select"
+import { ApplicationPicker } from "@/components/application-picker"
 import { errorProps, FieldErrorText } from "@/components/field-error-text"
+import { LoadingRegion } from "@/components/loading-region"
 import { TimeZoneSelect } from "@/components/time-zone-select"
 import { DISCARD_MESSAGE } from "@/components/use-unsaved-changes"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -84,11 +85,11 @@ export function InterviewDialog() {
             <AlertDescription>{errorMessage(interview.error)}</AlertDescription>
           </Alert>
         ) : !ready ? (
-          <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading interview">
+          <LoadingRegion label="Loading interview" className="gap-3">
             <Skeleton className="h-8" />
             <Skeleton className="h-8" />
             <Skeleton className="h-16" />
-          </div>
+          </LoadingRegion>
         ) : (
           <InterviewForm
             key={(interviewId ?? "new") + ":" + (applicationId ?? "")}
@@ -200,7 +201,7 @@ function InterviewForm({
         {showPicker ? (
           <Field data-invalid={application.invalid || undefined}>
             <FieldLabel htmlFor="interview-application">Application</FieldLabel>
-            <ApplicationSelect id="interview-application" value={values.applicationId} onChange={set("applicationId")}
+            <ApplicationPicker id="interview-application" value={values.applicationId} onChange={set("applicationId")}
               invalid={application.invalid} describedBy={application.invalid ? application.errorId : undefined} />
             <FieldErrorText id={application.errorId} message={application.message} />
           </Field>

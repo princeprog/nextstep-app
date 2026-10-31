@@ -62,17 +62,19 @@ export function useStartDemo() {
   return useEnterWorkspace((input: { timeZone: string }) => api.post<Me>("/auth/demo", input))
 }
 
+/**
+ * Ends the server session. It never fails: if the session already ended, the caller still clears private state
+ * (inside the workspace through useExitWorkspace, elsewhere with useClearPrivateState).
+ */
 export function useSignOut() {
-  const clear = useClearPrivateState()
   return useMutation({
     mutationFn: async () => {
       try {
         await api.post<void>("/auth/logout")
       } catch {
-        // Even if the server session already ended, the local state below must still be cleared.
+        // The session may already have ended; leaving continues either way.
       }
     },
-    onSettled: () => clear(),
   })
 }
 
@@ -84,11 +86,8 @@ export function useUpdateProfile() {
   })
 }
 
+/** Deletes the account. On success the caller leaves the workspace, which clears private state. */
 export function useDeleteAccount() {
-  const clear = useClearPrivateState()
-  return useMutation({
-    mutationFn: () => api.delete("/me"),
-    onSuccess: () => clear(),
-  })
+  return useMutation({ mutationFn: () => api.delete("/me") })
 }
 

@@ -4,8 +4,9 @@ import { TriangleAlertIcon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
-import { ApplicationSelect } from "@/components/application-select"
+import { ApplicationPicker } from "@/components/application-picker"
 import { errorProps, FieldErrorText } from "@/components/field-error-text"
+import { LoadingRegion } from "@/components/loading-region"
 import { TimeZoneSelect } from "@/components/time-zone-select"
 import { DISCARD_MESSAGE } from "@/components/use-unsaved-changes"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -67,11 +68,11 @@ export function TaskDialog() {
             <AlertDescription>{errorMessage(task.error)}</AlertDescription>
           </Alert>
         ) : !ready ? (
-          <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading task">
+          <LoadingRegion label="Loading task" className="gap-3">
             <Skeleton className="h-8" />
             <Skeleton className="h-16" />
             <Skeleton className="h-8" />
-          </div>
+          </LoadingRegion>
         ) : (
           <TaskForm
             key={(taskId ?? "new") + ":" + (applicationId ?? "")}
@@ -169,7 +170,7 @@ function TaskForm({
         {showPicker ? (
           <Field data-invalid={application.invalid || undefined}>
             <FieldLabel htmlFor="task-application">Application</FieldLabel>
-            <ApplicationSelect id="task-application" value={values.applicationId} onChange={set("applicationId")}
+            <ApplicationPicker id="task-application" value={values.applicationId} onChange={set("applicationId")}
               invalid={application.invalid} describedBy={application.invalid ? application.errorId : undefined} />
             <FieldErrorText id={application.errorId} message={application.message} />
           </Field>

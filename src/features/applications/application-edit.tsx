@@ -1,6 +1,7 @@
 "use client"
 
 import { ErrorState } from "@/components/error-state"
+import { LoadingRegion } from "@/components/loading-region"
 import { PageHeader } from "@/components/page-header"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -12,7 +13,11 @@ import { BackToApplications } from "./application-detail"
 export function ApplicationEdit({ id }: { id: string }) {
   const application = useApplication(id)
   if (application.isPending) {
-    return <Skeleton className="h-96" aria-label="Loading application" />
+    return (
+      <LoadingRegion label="Loading application">
+        <Skeleton className="h-96" />
+      </LoadingRegion>
+    )
   }
   if (application.isError) {
     return <ErrorState title="We couldn't load this application" error={application.error} onRetry={() => application.refetch()} />

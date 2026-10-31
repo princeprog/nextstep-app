@@ -63,13 +63,29 @@ export function useApplications(params: ListParams) {
   })
 }
 
-/** Active applications for pickers (first 100 by company name). */
-export function useApplicationOptions(enabled = true) {
+/** How many matches the application picker shows at once. */
+export const APPLICATION_PICKER_PAGE_SIZE = 20
+
+/**
+ * Active applications for the task and interview pickers, A–Z. The API matches the search against company, role,
+ * and contact. Changing the search cancels the previous request, and each search keeps its own cached results, so a
+ * slow response for older text never replaces newer results.
+ */
+export function useApplicationSearch(search: string) {
+  const term = search.trim()
   return useQuery({
-    queryKey: keys.applicationOptions,
+    queryKey: keys.applicationSearch(term),
     queryFn: ({ signal }) =>
-      api.get<ApplicationPage>("/applications", { signal, query: { pageSize: 100, sort: "company", direction: "asc" } }),
-    enabled,
+      api.get<ApplicationPage>("/applications", {
+        signal,
+        query: {
+          search: term || undefined,
+          archive: "active",
+          pageSize: APPLICATION_PICKER_PAGE_SIZE,
+          sort: "company",
+          direction: "asc",
+        },
+      }),
   })
 }
 
@@ -101,7 +117,7 @@ export function useApplicationInterviews(id: string, page: number) {
 export function useDuplicateCount(company: string, jobTitle: string, excludeId?: string) {
   const enabled = company.trim().length > 0 && jobTitle.trim().length > 0
   return useQuery({
-    queryKey: ["applications", "duplicates", company.trim().toLowerCase(), jobTitle.trim().toLowerCase(), excludeId],
+    queryKey: keys.applicationDuplicates(company.trim().toLowerCase(), jobTitle.trim().toLowerCase(), excludeId),
     queryFn: ({ signal }) =>
       api.get<{ count: number }>("/applications/duplicates", { signal, query: { company, jobTitle, excludeId } }),
     enabled,
@@ -149,7 +165,7 @@ export function useTasks(view: TaskView, page: number) {
 
 export function useTask(id: string | null) {
   return useQuery({
-    queryKey: ["tasks", "detail", id],
+    queryKey: keys.task(id),
     queryFn: ({ signal }) => api.get<Task>("/tasks/" + id, { signal }),
     enabled: Boolean(id),
   })
@@ -188,7 +204,7 @@ export function useInterviews(view: InterviewView, page: number) {
 
 export function useInterview(id: string | null) {
   return useQuery({
-    queryKey: ["interviews", "detail", id],
+    queryKey: keys.interview(id),
     queryFn: ({ signal }) => api.get<Interview>("/interviews/" + id, { signal }),
     enabled: Boolean(id),
   })

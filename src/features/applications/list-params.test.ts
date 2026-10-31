@@ -7,6 +7,7 @@ import {
   hasActiveFilters,
   parseListParams,
   serializeListParams,
+  SORT_OPTIONS,
   toApiQuery,
 } from "./list-params"
 
@@ -28,6 +29,17 @@ describe("application list URL state", () => {
     expect(parse("sort=company").direction).toBe("asc")
     expect(parse("sort=nextTaskDue").direction).toBe("asc")
     expect(parse("sort=appliedDate").direction).toBe("desc")
+  })
+
+  it("accepts only the sort choices the sort menu offers", () => {
+    expect(parse("sort=appliedDate&direction=asc")).toMatchObject({ sort: "appliedDate", direction: "asc" })
+    // Not offered: fall back to the natural direction instead of a choice the menu can't show.
+    expect(parse("sort=company&direction=desc")).toMatchObject({ sort: "company", direction: "asc" })
+    expect(parse("sort=updatedAt&direction=asc")).toMatchObject({ sort: "updatedAt", direction: "desc" })
+    for (const option of SORT_OPTIONS) {
+      const params = { ...DEFAULT_PARAMS, sort: option.sort, direction: option.direction }
+      expect(parse(serializeListParams(params).toString()), option.value).toEqual(params)
+    }
   })
 
   it("round-trips through the URL and omits defaults", () => {

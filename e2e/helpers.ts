@@ -43,6 +43,26 @@ export function card(page: Page, heading: string | RegExp): Locator {
   return page.locator("[data-slot=card]", { has: page.getByRole("heading", { name: heading }) })
 }
 
+/** Waits until no loading placeholder is left (every loading region in the app is marked aria-busy). */
+export async function waitForData(page: Page) {
+  await expect(page.locator("[aria-busy=true]")).toHaveCount(0)
+}
+
+/**
+ * Creates applications directly through the API with the signed-in session of `page` (CSRF token first, as the app
+ * does). Much faster than the form when a test needs many records.
+ */
+export async function createApplicationsThroughApi(page: Page, applications: { company: string; jobTitle: string }[]) {
+  const csrf = await (await page.request.get("/api/v1/auth/csrf")).json()
+  for (let start = 0; start < applications.length; start += 10) {
+    const responses = await Promise.all(applications.slice(start, start + 10).map((data) =>
+      page.request.post("/api/v1/applications", { headers: { [csrf.headerName]: csrf.token }, data })))
+    for (const response of responses) {
+      expect(response.status(), await response.text()).toBe(201)
+    }
+  }
+}
+
 /** Accepts confirm() prompts and records any alert(), which would indicate script injection. */
 export function watchDialogs(page: Page) {
   const alerts: string[] = []

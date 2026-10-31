@@ -2,7 +2,7 @@
 
 import { InfoIcon, TriangleAlertIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { errorProps, FieldErrorText } from "@/components/field-error-text"
@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { useMe } from "@/features/auth/api"
 import { useCreateApplication, useDuplicateCount, useUpdateApplication } from "@/features/workspace/api"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { errorMessage, isApiError } from "@/lib/api/errors"
 import type { Application, ApplicationStatus } from "@/lib/api/types"
 import { ARRANGEMENT_LABELS, EMPLOYMENT_LABELS, PERIOD_LABELS, STATUS_LABELS, STATUS_ORDER } from "@/lib/labels"
@@ -86,15 +87,6 @@ function toPayload(values: Values) {
   }
 }
 
-function useDebounced<T>(value: T, delay: number) {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebounced(value), delay)
-    return () => window.clearTimeout(timer)
-  }, [value, delay])
-  return debounced
-}
-
 export function ApplicationForm({ application }: { application?: Application }) {
   const router = useRouter()
   const me = useMe()
@@ -109,8 +101,8 @@ export function ApplicationForm({ application }: { application?: Application }) 
   const dirty = !saved && JSON.stringify(values) !== JSON.stringify(initial)
   useUnsavedChanges(dirty)
 
-  const debouncedCompany = useDebounced(values.company, 400)
-  const debouncedTitle = useDebounced(values.jobTitle, 400)
+  const debouncedCompany = useDebouncedValue(values.company, 400)
+  const debouncedTitle = useDebouncedValue(values.jobTitle, 400)
   const duplicates = useDuplicateCount(debouncedCompany, debouncedTitle, application?.id)
 
   const set = (field: keyof Values) => (value: string) => setValues((current) => ({ ...current, [field]: value }))

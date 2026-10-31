@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 
 import { Wordmark } from "@/components/brand"
 import { ErrorState } from "@/components/error-state"
@@ -52,6 +52,21 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ]
 
+type ExitWorkspace = (target: string, work?: () => Promise<unknown>) => Promise<void>
+
+const ExitWorkspaceContext = createContext<ExitWorkspace>(async (_target, work) => {
+  await work?.()
+})
+
+/**
+ * Leaves the workspace on purpose (sign-out, account deletion). Optional `work` (the sign-out request) runs first;
+ * then private data is cleared and the browser goes to `target`. Once leaving has started, 401 responses from
+ * requests still in flight are expected and no longer redirect elsewhere.
+ */
+export function useExitWorkspace() {
+  return useContext(ExitWorkspaceContext)
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -60,21 +75,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const me = useMe({ enabled: endedTarget === null })
   const clear = useClearPrivateState()
 
-  // When the API says the session ended, stop rendering private views, drop every cached record, and go to sign-in.
-  // The handler runs once; later 401s from requests already in flight are ignored.
+  // Every way out of the workspace ends here, once: stop rendering private views, then (in the effect below) drop
+  // every cached record and go to the target page.
+  const exitWorkspace = useCallback<ExitWorkspace>(async (target, work) => {
+    if (ending.current) {
+      return
+    }
+    ending.current = true
+    try {
+      await work?.()
+    } finally {
+      setEndedTarget(target)
+    }
+  }, [])
+
+  // When the API says the session ended, leave with an explanation. Later 401s from requests already in flight
+  // are ignored because leaving has started.
   useEffect(() => {
     onSessionEnded((error) => {
-      if (ending.current) {
-        return
-      }
-      ending.current = true
       const hadSession = Boolean(queryClient.getQueryData(keys.me))
-      setEndedTarget(
+      void exitWorkspace(
         !hadSession ? "/login" : error.code === "DEMO_EXPIRED" ? "/login?reason=demo-expired" : "/login?reason=expired",
       )
     })
     return () => onSessionEnded(null)
-  }, [queryClient])
+  }, [queryClient, exitWorkspace])
 
   useEffect(() => {
     if (endedTarget) {
@@ -117,42 +142,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
-      <a
-        href="#main-content"
-        className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
-      >
-        Skip to content
-      </a>
-      <AppSidebar me={me.data} />
-      <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/80">
-          <SidebarTrigger aria-label="Toggle navigation" />
-          <Separator orientation="vertical" className="h-5" />
-          <span className="text-sm font-medium md:hidden">
-            <Wordmark />
-          </span>
-        </header>
-        {me.data.kind === "DEMO" ? <DemoBanner me={me.data} /> : null}
-        <div id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 outline-none md:p-6">
-          {children}
-        </div>
-      </SidebarInset>
-      <TaskDialog />
-      <InterviewDialog />
-    </SidebarProvider>
+    <ExitWorkspaceContext value={exitWorkspace}>
+      <SidebarProvider>
+        <a
+          href="#main-content"
+          className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        >
+          Skip to content
+        </a>
+        <AppSidebar me={me.data} />
+        <SidebarInset>
+          <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-backdrop-filter:bg-background/80">
+            <SidebarTrigger aria-label="Toggle navigation" />
+            <Separator orientation="vertical" className="h-5" />
+            <span className="text-sm font-medium md:hidden">
+              <Wordmark />
+            </span>
+          </header>
+          {me.data.kind === "DEMO" ? <DemoBanner me={me.data} /> : null}
+          <div id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 outline-none md:p-6">
+            {children}
+          </div>
+        </SidebarInset>
+        <TaskDialog />
+        <InterviewDialog />
+      </SidebarProvider>
+    </ExitWorkspaceContext>
   )
 }
 
 function AppSidebar({ me }: { me: Me }) {
   const pathname = usePathname()
-  const router = useRouter()
   const signOut = useSignOut()
+  const exitWorkspace = useExitWorkspace()
   const { setOpenMobile } = useSidebar()
 
-  async function onSignOut() {
-    await signOut.mutateAsync()
-    router.replace("/login?reason=signed-out")
+  function onSignOut() {
+    void exitWorkspace("/login?reason=signed-out", () => signOut.mutateAsync())
   }
 
   return (

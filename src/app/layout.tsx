@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
+import { connection } from "next/server"
 
 import { Providers } from "@/components/providers"
 import "./globals.css"
@@ -17,7 +18,10 @@ export const viewport: Viewport = {
   themeColor: "#f8f7f2",
 }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Render every page per request so Next.js can add this response's CSP nonce (set in src/proxy.ts) to its scripts.
+  // A prerendered page would carry no nonce and its scripts would be blocked.
+  await connection()
   return (
     <html lang="en" className={sans.variable + " h-full antialiased"}>
       <body className="min-h-full">

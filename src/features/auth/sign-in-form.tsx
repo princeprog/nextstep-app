@@ -2,7 +2,7 @@
 
 import { InfoIcon, TriangleAlertIcon } from "lucide-react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { errorProps, FieldErrorText } from "@/components/field-error-text"
@@ -23,15 +23,16 @@ const REASONS: Record<string, string> = {
   deleted: "Your account and its data were deleted.",
 }
 
-export function SignInForm() {
+/** `reason` comes from the ?reason= query parameter set when another page sends the user here. */
+export function SignInForm({ reason }: { reason: string | null }) {
   const router = useRouter()
-  const reason = useSearchParams().get("reason")
   const me = useMe()
   const signIn = useSignIn()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
+  const notice = reason && Object.hasOwn(REASONS, reason) ? REASONS[reason] : null
 
   useEffect(() => {
     if (me.data) {
@@ -73,10 +74,10 @@ export function SignInForm() {
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="flex flex-col gap-4">
-          {reason && REASONS[reason] ? (
+          {notice ? (
             <Alert role="status">
               <InfoIcon />
-              <AlertDescription>{REASONS[reason]}</AlertDescription>
+              <AlertDescription>{notice}</AlertDescription>
             </Alert>
           ) : null}
           {formError ? (

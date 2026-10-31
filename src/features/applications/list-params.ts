@@ -1,4 +1,5 @@
 import type { ApplicationStatus, EmploymentType, WorkArrangement } from "@/lib/api/types"
+import { parsePage } from "@/lib/pagination"
 
 export type SortField = "updatedAt" | "company" | "appliedDate" | "nextTaskDue"
 export type SortDirection = "asc" | "desc"
@@ -63,9 +64,12 @@ function oneOf<T extends string>(value: string | null, allowed: string[], fallba
 /** Reads list state from the URL, ignoring anything invalid so a bad link still shows a usable list. */
 export function parseListParams(search: URLSearchParams): ListParams {
   const sort = oneOf<SortField>(search.get("sort"), SORTS, DEFAULT_PARAMS.sort)
-  const defaultDirection: SortDirection = sort === "company" || sort === "nextTaskDue" ? "asc" : "desc"
+  const naturalDirection: SortDirection = sort === "company" || sort === "nextTaskDue" ? "asc" : "desc"
+  const requested = oneOf<SortDirection>(search.get("direction"), ["asc", "desc"], naturalDirection)
+  // Only the sort choices offered in the UI are accepted, so the sort menu always shows what the list uses.
+  const offered = SORT_OPTIONS.some((option) => option.sort === sort && option.direction === requested)
   return {
-    page: positiveInt(search.get("page"), 1),
+    page: parsePage(search.get("page")),
     pageSize: positiveInt(search.get("pageSize"), 20, 100),
     search: search.get("search") ?? "",
     status: oneOf(search.get("status"), STATUSES, ""),
@@ -76,7 +80,7 @@ export function parseListParams(search: URLSearchParams): ListParams {
     appliedTo: DATE.test(search.get("appliedTo") ?? "") ? search.get("appliedTo")! : "",
     archive: search.get("archive") === "archived" ? "archived" : "active",
     sort,
-    direction: oneOf<SortDirection>(search.get("direction"), ["asc", "desc"], defaultDirection),
+    direction: offered ? requested : naturalDirection,
   }
 }
 

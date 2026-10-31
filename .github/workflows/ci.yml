@@ -1,0 +1,165 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Superseded runs on branches and pull requests are cancelled; every push to main finishes.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  e2e:
+    name: End-to-end tests against the API
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the app
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: nextstep-app
+          persist-credentials: false
+      - name: Check out the API (main)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: princeprog/nextstep-api
+          ref: main
+          path: nextstep-api
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: nextstep-api/pom.xml
+
+      - name: Install PostgreSQL 18 server binaries (PGDG)
+        run: |
+          # Install binaries only; the throwaway cluster is created by the runner user in the next step.
+          sudo install -d /etc/postgresql-common/createcluster.d /usr/share/postgresql-common/pgdg
+          echo "create_main_cluster = false" | sudo tee /etc/postgresql-common/createcluster.d/00-no-main-cluster.conf
+          sudo curl --fail --silent --show-error --location \
+            --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-18
+
+      - name: Start a throwaway PostgreSQL cluster
+        run: |
+          pg_bin=/usr/lib/postgresql/18/bin
+          pgdata="$RUNNER_TEMP/pgdata"
+          super_password="$(openssl rand -hex 24)"
+          app_password="$(openssl rand -hex 24)"
+          echo "::add-mask::$super_password"
+          echo "::add-mask::$app_password"
+          pwfile="$(mktemp)"
+          printf '%s' "$super_password" > "$pwfile"
+          "$pg_bin/initdb" -D "$pgdata" -U postgres --auth=scram-sha-256 --pwfile="$pwfile" \
+            -E UTF8 --locale=C --locale-provider=builtin --builtin-locale=C.UTF-8
+          rm -f "$pwfile"
+          "$pg_bin/pg_ctl" -D "$pgdata" -l "$RUNNER_TEMP/postgres.log" -w start \
+            -o "-c listen_addresses=127.0.0.1 -c port=5432 -c unix_socket_directories=$RUNNER_TEMP"
+          PGPASSWORD="$super_password" "$pg_bin/psql" -h 127.0.0.1 -p 5432 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -q \
+            -c "CREATE ROLE nextstep LOGIN PASSWORD '$app_password'" \
+            -c "CREATE DATABASE nextstep OWNER nextstep"
+          {
+            echo "DATABASE_URL=jdbc:postgresql://127.0.0.1:5432/nextstep"
+            echo "DATABASE_USER=nextstep"
+            echo "DATABASE_PASSWORD=$app_password"
+          } >> "$GITHUB_ENV"
+
+      - name: Build the API
+        working-directory: nextstep-api
+        run: ./mvnw -B -DskipTests package
+
+      - name: Start the API
+        working-directory: nextstep-api
+        env:
+          # The suite creates many accounts and demos from one address.
+          DEMO_RATE_LIMIT_PER_HOUR: "1000"
+          REGISTER_RATE_LIMIT_PER_HOUR: "1000"
+          LOGIN_RATE_LIMIT_PER_WINDOW: "1000"
+        run: |
+          jar="$(find target -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' | head -n 1)"
+          nohup java -jar "$jar" > "$RUNNER_TEMP/api.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/api.pid"
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:8080/api/v1/auth/csrf; then
+              echo "API is ready after $attempt checks"
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/api.pid")" 2>/dev/null; then
+              echo "::error::The API exited during startup"
+              tail -n 100 "$RUNNER_TEMP/api.log"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::The API did not answer within 3 minutes"
+          tail -n 100 "$RUNNER_TEMP/api.log"
+          exit 1
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: nextstep-app/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: nextstep-app/pnpm-lock.yaml
+      - name: Install app dependencies
+        working-directory: nextstep-app
+        run: pnpm install --frozen-lockfile
+      - name: Build the app
+        working-directory: nextstep-app
+        run: pnpm build
+      - name: Install Playwright Chromium
+        working-directory: nextstep-app
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run end-to-end tests
+        working-directory: nextstep-app
+        run: pnpm test:e2e
+
+      - name: Upload reports and logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-failure-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            nextstep-app/playwright-report/
+            nextstep-app/test-results/
+            ${{ runner.temp }}/api.log
+            ${{ runner.temp }}/postgres.log

@@ -11,13 +11,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Spinner } from "@/components/ui/spinner"
 import { browserTimeZone } from "@/lib/time"
 
-import { useMe, useSignOut, useStartDemo } from "./api"
+import { useClearPrivateState, useMe, useSignOut, useStartDemo } from "./api"
 
 export function DemoStart() {
   const router = useRouter()
   const me = useMe()
   const startDemo = useStartDemo()
   const signOut = useSignOut()
+  const clear = useClearPrivateState()
 
   async function start() {
     try {
@@ -56,7 +57,7 @@ export function DemoStart() {
       <CardFooter className="mt-4 flex flex-col items-stretch gap-3">
         {me.data ? (
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" disabled={signOut.isPending} onClick={() => signOut.mutate()}>
+            <Button variant="outline" disabled={signOut.isPending} onClick={() => signOut.mutate(undefined, { onSettled: clear })}>
               Sign out
             </Button>
             <ButtonLink href="/dashboard">

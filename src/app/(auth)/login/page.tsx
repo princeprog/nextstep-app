@@ -1,15 +1,12 @@
 import type { Metadata } from "next"
-import { Suspense } from "react"
 
 import { SignInForm } from "@/features/auth/sign-in-form"
 
 export const metadata: Metadata = { title: "Sign in" }
 
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <SignInForm />
-    </Suspense>
-  )
+// The reason is read on the server so the form is in the first HTML response instead of waiting for JavaScript.
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+  const { reason } = await searchParams
+  return <SignInForm reason={typeof reason === "string" ? reason : null} />
 }
 

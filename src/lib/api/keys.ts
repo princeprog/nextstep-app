@@ -7,10 +7,14 @@ export const keys = {
   application: (id: string) => ["applications", "detail", id] as const,
   applicationTasks: (id: string, page: number) => ["applications", "detail", id, "tasks", page] as const,
   applicationInterviews: (id: string, page: number) => ["applications", "detail", id, "interviews", page] as const,
-  applicationOptions: ["applications", "options"] as const,
+  applicationSearch: (search: string) => ["applications", "search", search] as const,
+  applicationDuplicates: (company: string, jobTitle: string, excludeId?: string) =>
+    ["applications", "duplicates", company, jobTitle, excludeId ?? null] as const,
   tasks: ["tasks"] as const,
   taskList: (view: string, page: number) => ["tasks", "list", view, page] as const,
+  task: (id: string | null) => ["tasks", "detail", id] as const,
   interviews: ["interviews"] as const,
   interviewList: (view: string, page: number) => ["interviews", "list", view, page] as const,
+  interview: (id: string | null) => ["interviews", "detail", id] as const,
 }
 

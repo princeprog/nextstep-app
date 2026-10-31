@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ButtonLink } from "@/components/button-link"
 
 import { ErrorState } from "@/components/error-state"
+import { LoadingRegion } from "@/components/loading-region"
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -46,12 +47,12 @@ export function DashboardView() {
         }
       />
       {dashboard.isPending ? (
-        <div className="grid gap-6 lg:grid-cols-2" aria-busy="true" aria-label="Loading dashboard">
+        <LoadingRegion label="Loading dashboard" className="grid gap-6 lg:grid-cols-2">
           <Skeleton className="h-48" />
           <Skeleton className="h-48" />
           <Skeleton className="h-48" />
           <Skeleton className="h-48" />
-        </div>
+        </LoadingRegion>
       ) : dashboard.isError ? (
         <ErrorState title="Your dashboard is unavailable right now" error={dashboard.error} onRetry={() => dashboard.refetch()} />
       ) : (

@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
 
-import { startDemo } from "./helpers"
+import { expect, test } from "./fixtures"
+import { startDemo, waitForData } from "./helpers"
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]
 
@@ -19,14 +19,14 @@ test("workspace pages pass automated accessibility checks", async ({ page }) => 
   for (const path of ["/dashboard", "/applications", "/tasks", "/interviews", "/settings", "/applications/new"]) {
     await page.goto(path)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
-    await page.waitForLoadState("networkidle")
+    await waitForData(page)
     const results = await new AxeBuilder({ page }).withTags(TAGS).analyze()
     expect(results.violations, path).toEqual([])
   }
   await page.goto("/applications?search=Harbor")
   await page.getByRole("link", { name: "Harbor Labs" }).filter({ visible: true }).first().click()
   await expect(page.getByRole("heading", { level: 1, name: "Harbor Labs" })).toBeVisible()
-  await page.waitForLoadState("networkidle")
+  await waitForData(page)
   const detail = await new AxeBuilder({ page }).withTags(TAGS).analyze()
   expect(detail.violations, "application detail").toEqual([])
 
@@ -34,6 +34,15 @@ test("workspace pages pass automated accessibility checks", async ({ page }) => 
   await expect(page.getByRole("dialog")).toBeVisible()
   const dialog = await new AxeBuilder({ page }).withTags(TAGS).analyze()
   expect(dialog.violations, "task dialog").toEqual([])
+
+  // The application picker, opened from the task list, with its list of options showing.
+  await page.goto("/tasks")
+  await page.getByRole("button", { name: "Add task" }).click()
+  await page.getByRole("combobox", { name: "Application" }).click()
+  await expect(page.getByRole("option").first()).toBeVisible()
+  await waitForData(page)
+  const picker = await new AxeBuilder({ page }).withTags(TAGS).analyze()
+  expect(picker.violations, "application picker").toEqual([])
 })
 
 test("keyboard users can skip navigation, use dialogs, and change status", async ({ page }) => {
@@ -76,9 +85,23 @@ test("layouts fit a 320 px screen without sideways scrolling", async ({ page }) 
   for (const path of ["/dashboard", "/applications", "/tasks", "/interviews", "/settings", "/applications/new"]) {
     await page.goto(path)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
-    await page.waitForLoadState("networkidle")
+    await waitForData(page)
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), path).toBeLessThanOrEqual(0)
   }
+
+  // The task dialog with the application picker's list open.
+  await page.goto("/tasks")
+  await page.getByRole("button", { name: "Add task" }).click()
+  await page.getByRole("combobox", { name: "Application" }).click()
+  const firstOption = page.getByRole("option").first()
+  await expect(firstOption).toBeVisible()
+  const box = await firstOption.boundingBox()
+  expect(box && box.x >= 0 && box.x + box.width <= 320, "picker options fit the screen").toBe(true)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "picker").toBeLessThanOrEqual(0)
+  await page.keyboard.press("Escape")
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toBeHidden()
+
   await page.getByRole("button", { name: "Toggle navigation" }).click()
   await expect(page.getByRole("link", { name: "Interviews" })).toBeVisible()
 })

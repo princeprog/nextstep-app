@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect } from "react"
 
 import { ErrorState } from "@/components/error-state"
+import { LoadingRegion } from "@/components/loading-region"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
 import { ViewTabs } from "@/components/view-tabs"
@@ -13,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { type InterviewView, useInterviews } from "@/features/workspace/api"
+import { parsePage } from "@/lib/pagination"
 import { useUiStore } from "@/stores/ui-store"
 
 import { InterviewList } from "./interview-list"
@@ -28,7 +30,7 @@ export function InterviewsView() {
   const router = useRouter()
   const search = useSearchParams()
   const view = (VIEWS.find((item) => item.value === search.get("view"))?.value ?? "future") as InterviewView
-  const page = Math.max(1, Number(search.get("page")) || 1)
+  const page = parsePage(search.get("page"))
   const interviews = useInterviews(view, page)
   const openDialog = useUiStore((state) => state.openInterviewDialog)
 
@@ -55,10 +57,10 @@ export function InterviewsView() {
       <Card>
         <CardContent>
           {interviews.isPending ? (
-            <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading interviews">
+            <LoadingRegion label="Loading interviews" className="gap-2">
               <Skeleton className="h-12" />
               <Skeleton className="h-12" />
-            </div>
+            </LoadingRegion>
           ) : interviews.isError ? (
             <ErrorState title="We couldn't load interviews" error={interviews.error} onRetry={() => interviews.refetch()} />
           ) : interviews.data.total === 0 ? (

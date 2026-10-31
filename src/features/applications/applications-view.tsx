@@ -3,10 +3,11 @@
 import { BriefcaseIcon, PlusIcon, SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 import { ButtonLink } from "@/components/button-link"
 
 import { ErrorState } from "@/components/error-state"
+import { LoadingRegion } from "@/components/loading-region"
 import { PageHeader } from "@/components/page-header"
 import { PaginationBar } from "@/components/pagination-bar"
 import { DueBadge, StatusBadge } from "@/components/status-badge"
@@ -72,26 +73,27 @@ export function ApplicationsView() {
     }
   }, [params.search])
 
-  // Debounce typing by 300 ms; superseded requests are cancelled and never replace newer results.
+  // Debounce typing by 300 ms; superseded requests are cancelled and never replace newer results. The search is
+  // applied to the URL state current when the timer fires, so a filter changed while typing is kept.
+  const commitSearch = useEffectEvent((text: string) => {
+    lastPushedSearch.current = text
+    navigate(changeListParams(params, { search: text }), true)
+  })
   useEffect(() => {
     if (searchText === params.search) {
       return
     }
-    const timer = window.setTimeout(() => {
-      lastPushedSearch.current = searchText
-      navigate(changeListParams(params, { search: searchText }), true)
-    }, 300)
+    const timer = window.setTimeout(() => commitSearch(searchText), 300)
     return () => window.clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchText])
+  }, [searchText, params.search])
 
   // If an edit empties the current page, move to the last page that still has results.
   const totalPages = query.data?.totalPages ?? 0
+  const showLastPage = useEffectEvent(() => navigate({ ...params, page: totalPages }, true))
   useEffect(() => {
     if (query.data && !query.isPlaceholderData && totalPages > 0 && params.page > totalPages) {
-      navigate({ ...params, page: totalPages }, true)
+      showLastPage()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.data, query.isPlaceholderData, totalPages, params.page])
 
   const update = (change: Partial<ListParams>) => navigate(changeListParams(params, change))
@@ -224,11 +226,11 @@ export function ApplicationsView() {
           </span>
         </div>
         {query.isPending ? (
-          <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading applications">
+          <LoadingRegion label="Loading applications" className="gap-2">
             <Skeleton className="h-14" />
             <Skeleton className="h-14" />
             <Skeleton className="h-14" />
-          </div>
+          </LoadingRegion>
         ) : query.isError ? (
           <ErrorState title="We couldn't load applications" error={query.error} onRetry={() => query.refetch()} />
         ) : query.data.total === 0 ? (

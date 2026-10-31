@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test"
-
+import { expect, test } from "./fixtures"
 import { startDemo } from "./helpers"
 
 test("search, filters, and sort live in the URL and survive back and forward", async ({ page }) => {
@@ -32,5 +31,19 @@ test("search, filters, and sort live in the URL and survive back and forward", a
   await page.waitForURL(/\/applications\/[0-9a-f-]{36}$/)
   await page.getByRole("link", { name: "Back to applications" }).click()
   await expect(page).toHaveURL(/sort=company/)
+})
+
+test("a filter chosen while a search is still being typed is kept", async ({ page }) => {
+  await startDemo(page)
+  await page.goto("/applications")
+  await expect(page.getByText("8 applications")).toBeVisible()
+
+  // The status changes before the 300 ms search debounce fires; both must end up in the URL.
+  await page.getByLabel("Search", { exact: true }).fill("a")
+  await page.getByLabel("Status", { exact: true }).selectOption("APPLIED")
+  await expect(page).toHaveURL(/search=a/)
+  await expect(page).toHaveURL(/search=a&status=APPLIED/)
+  await expect(page.getByLabel("Status", { exact: true })).toHaveValue("APPLIED")
+  await expect(page.getByLabel("Search", { exact: true })).toHaveValue("a")
 })
 

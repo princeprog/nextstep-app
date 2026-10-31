@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/button-link"
 
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { ErrorState } from "@/components/error-state"
+import { LoadingRegion } from "@/components/loading-region"
 import { StatusBadge } from "@/components/status-badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -48,11 +49,11 @@ export function ApplicationDetail({ id }: { id: string }) {
 
   if (application.isPending) {
     return (
-      <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading application">
+      <LoadingRegion label="Loading application" className="gap-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40" />
         <Skeleton className="h-40" />
-      </div>
+      </LoadingRegion>
     )
   }
   if (application.isError) {
@@ -237,7 +238,9 @@ function TasksCard({ application, onAdd }: { application: Application; onAdd: ()
       </CardHeader>
       <CardContent>
         {tasks.isPending ? (
-          <Skeleton className="h-16" />
+          <LoadingRegion label="Loading tasks">
+            <Skeleton className="h-16" />
+          </LoadingRegion>
         ) : tasks.isError ? (
           <ErrorState title="Tasks are unavailable" error={tasks.error} onRetry={() => tasks.refetch()} />
         ) : tasks.data.items.length === 0 ? (
@@ -267,7 +270,9 @@ function InterviewsCard({ application, onAdd }: { application: Application; onAd
       </CardHeader>
       <CardContent>
         {interviews.isPending ? (
-          <Skeleton className="h-16" />
+          <LoadingRegion label="Loading interviews">
+            <Skeleton className="h-16" />
+          </LoadingRegion>
         ) : interviews.isError ? (
           <ErrorState title="Interviews are unavailable" error={interviews.error} onRetry={() => interviews.refetch()} />
         ) : interviews.data.items.length === 0 ? (

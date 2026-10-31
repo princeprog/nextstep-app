@@ -1,0 +1,17 @@
+# OSV-Scanner exceptions for pnpm-lock.yaml (see .github/workflows/security.yml).
+# Every entry needs a reason and expires, so the scan fails again and the finding is reviewed.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-01
+reason = "minimatch denial of service through crafted glob patterns. Present only in build and lint tooling (ESLint plugins, typescript-estree, the shadcn CLI), which never receives untrusted patterns. Fixed only in minimatch 11.0.1, and those tools still require minimatch 3, 5, or 10. Reviewed 2026-11-01."
+
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2027-02-01
+reason = "deepmerge prototype poisoning. Present only in the shadcn CLI (a development tool for adding components); no patched deepmerge release exists. Reviewed 2026-11-01."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-02-01
+reason = "glob keeps walking after its AbortSignal fires. Present only through lighthouse 13.6.0 (@sentry/node, @sentry/bundler-plugins), used by the local pnpm perf script on the project's own files. Fixed only in glob 14; the Sentry packages still require glob 13. Reviewed 2026-11-01."

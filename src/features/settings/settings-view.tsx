@@ -1,10 +1,10 @@
 "use client"
 
 import { LogOutIcon, TriangleAlertIcon } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { useExitWorkspace } from "@/components/app-shell"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { errorProps, FieldErrorText } from "@/components/field-error-text"
 import { PageHeader } from "@/components/page-header"
@@ -99,8 +99,8 @@ function ProfileCard({ me }: { me: Me }) {
 }
 
 function SessionCard({ me }: { me: Me }) {
-  const router = useRouter()
   const signOut = useSignOut()
+  const exitWorkspace = useExitWorkspace()
   return (
     <Card>
       <CardHeader>
@@ -113,10 +113,7 @@ function SessionCard({ me }: { me: Me }) {
       </CardHeader>
       <CardFooter>
         <Button variant="outline" disabled={signOut.isPending}
-          onClick={async () => {
-            await signOut.mutateAsync()
-            router.replace("/login?reason=signed-out")
-          }}>
+          onClick={() => void exitWorkspace("/login?reason=signed-out", () => signOut.mutateAsync())}>
           <LogOutIcon data-icon="inline-start" />
           {me.kind === "DEMO" ? "Leave demo" : "Sign out"}
         </Button>
@@ -126,8 +123,8 @@ function SessionCard({ me }: { me: Me }) {
 }
 
 function DeleteAccountCard({ me }: { me: Me }) {
-  const router = useRouter()
   const remove = useDeleteAccount()
+  const exitWorkspace = useExitWorkspace()
   const [open, setOpen] = useState(false)
   const [confirmation, setConfirmation] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -158,7 +155,7 @@ function DeleteAccountCard({ me }: { me: Me }) {
           setError(null)
           try {
             await remove.mutateAsync()
-            router.replace("/login?reason=deleted")
+            void exitWorkspace("/login?reason=deleted")
           } catch (cause) {
             setError(errorMessage(cause))
             throw cause

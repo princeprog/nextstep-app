@@ -49,15 +49,33 @@ Product requirements, rules, and decisions live in the owner's local Obsidian va
 - Use existing shadcn/ui components (Base UI: compose with `render`, not `asChild`). For navigation styled as a button, use
   `ButtonLink` so it keeps link semantics. Forms use `Field` with `aria-invalid` and `aria-describedby` messages.
 - After API contract changes, run `pnpm api:types` and commit the regenerated `schema.d.ts`.
+- Pick applications with `ApplicationPicker`, which searches through the API (`useApplicationSearch`); don't load a fixed
+  page of applications into a select.
+- Leave the workspace on purpose (sign-out, account deletion) through `useExitWorkspace` from `src/components/app-shell.tsx`.
+  It clears private data once and ignores 401 responses from requests still in flight.
 - Keep 320 px layouts, keyboard access, visible focus, and reduced motion working. Private pages stay noindex.
+
+## Security headers
+
+- `src/proxy.ts` sets a nonce-based Content-Security-Policy on every page, and the root layout renders pages per request so
+  Next.js can add the nonce to its scripts. Don't prerender pages, add inline `<script>` tags, or call other origins from
+  the browser (`connect-src 'self'`). A third-party script would need the nonce and a policy change.
+- Static headers (noindex, referrer, nosniff, framing, Permissions-Policy, opener policy) live in `next.config.ts`.
+  Strict-Transport-Security is sent only when the server-only `APP_HTTPS=true` is set.
+- `e2e/fixtures.ts` fails any end-to-end test that triggers a CSP or Permissions-Policy report. Import `test` and `expect`
+  from it in new specs.
 
 ## Verification
 
 ```powershell
 pnpm lint; pnpm typecheck; pnpm test; pnpm build
-pnpm test:e2e     # with ..
-extstep-apiscriptsun-api.ps1 -RelaxedLimits running
+pnpm test:e2e     # with ..\nextstep-api\scripts\run-api.ps1 -RelaxedLimits running
+pnpm perf         # optional Lighthouse lab check; needs the build and the API
 ```
+
+CI runs the same checks plus the end-to-end suite against nextstep-api `main` (`.github/workflows/ci.yml`).
+`.github/workflows/security.yml` runs `pnpm audit --audit-level high`, OSV-Scanner, and gitleaks. Add an OSV exception to
+`osv-scanner.toml` only with a reason and an expiry date.
 
 ## Don'ts
 
