@@ -5,9 +5,10 @@
 //   pnpm perf                 # one run per page
 //   PERF_RUNS=3 pnpm perf     # median of three runs per page
 //
-// Pages: /login, /register, /demo, and /dashboard signed in to a new demo workspace. The demo is started through
-// the API's CSRF flow and its session cookie is passed to Lighthouse as an extra request header, so the API must be
-// running (see README). An already running server at PERF_BASE_URL (default http://localhost:3000) is reused;
+// Pages: /login, /register, the account email pages (/forgot-password, /resend-confirmation, and /verify-email and
+// /reset-password as opened without a link token), /demo, and /dashboard signed in to a new demo workspace. The demo
+// is started through the API's CSRF flow and its session cookie is passed to Lighthouse as an extra request header, so
+// the API must be running (see README). An already running server at PERF_BASE_URL (default http://localhost:3000) is reused;
 // otherwise the script runs "next start" for the measurement and stops it afterwards.
 //
 // Chrome is found automatically. On Windows the script falls back to Microsoft Edge; set CHROME_PATH to choose
@@ -27,6 +28,10 @@ const runs = Math.max(1, Number.parseInt(process.env.PERF_RUNS ?? "1", 10) || 1)
 const PAGES = [
   { path: "/login", signedIn: false },
   { path: "/register", signedIn: false },
+  { path: "/forgot-password", signedIn: false },
+  { path: "/resend-confirmation", signedIn: false },
+  { path: "/verify-email", signedIn: false },
+  { path: "/reset-password", signedIn: false },
   { path: "/demo", signedIn: false },
   { path: "/dashboard", signedIn: true },
 ]

@@ -154,8 +154,10 @@ Security Policy or Permissions-Policy problem.
 ### Lab performance
 
 `pnpm perf` runs Lighthouse with its default mobile emulation (simulated slow 4G, 4x CPU slowdown) against the
-production build for `/login`, `/register`, `/demo`, and `/dashboard`. For the dashboard it starts a demo through the API
-(CSRF token first, then `POST /api/v1/auth/demo`) and passes the session cookie to Lighthouse as an extra header.
+production build for `/login`, `/register`, the account email pages (`/forgot-password`, `/resend-confirmation`, and
+`/verify-email` and `/reset-password` without a link token), `/demo`, and `/dashboard`. For the dashboard it starts a demo
+through the API (CSRF token first, then `POST /api/v1/auth/demo`) and passes the session cookie to Lighthouse as an extra
+header.
 
 ```powershell
 pnpm build
@@ -167,6 +169,24 @@ It prints the category scores with LCP, CLS, TBT, FCP, and Speed Index, flags va
 thresholds (LCP 2.5 s, CLS 0.1, TBT 200 ms, FCP 1.8 s, Speed Index 3.4 s), and writes HTML and JSON reports plus a
 `summary.json` to `lighthouse-reports/<timestamp>/`, which git ignores. SEO scores are low on purpose because every page
 is noindex. Lab numbers depend on the machine, so this check isn't part of CI.
+
+Measured on 2026-11-01 with Chrome on Windows, median of three runs:
+
+| Page | Performance | Accessibility | Best practices | LCP | CLS | TBT |
+| --- | --- | --- | --- | --- | --- | --- |
+| `/login` | 100 | 100 | 96 | 0.91 s | 0 | 28 ms |
+| `/register` | 100 | 100 | 96 | 0.91 s | 0 | 36 ms |
+| `/forgot-password` | 100 | 100 | 100 | 0.91 s | 0 | 38 ms |
+| `/resend-confirmation` | 100 | 100 | 100 | 0.91 s | 0 | 52 ms |
+| `/verify-email` | 100 | 100 | 100 | 0.91 s | 0.027 | 25 ms |
+| `/reset-password` | 100 | 100 | 100 | 0.91 s | 0.020 | 24 ms |
+| `/demo` | 100 | 100 | 96 | 0.91 s | 0 | 24 ms |
+| `/dashboard` | 99 | 100 | 100 | 0.91 s | 0 | 107 ms |
+
+Best practices is 96 on `/login`, `/register`, and `/demo` only because those pages ask `/api/v1/me` whether the visitor is
+already signed in, and Chrome logs the expected 401 for an anonymous visitor as a console error. The small layout shift on
+`/verify-email` and `/reset-password` comes from reading the link token after the page loads; both stay well under the
+0.1 threshold.
 
 ## Production-like staging (local)
 
@@ -261,7 +281,8 @@ the app's parts.
 **Deploy**
 
 1. Build with the production values. `pnpm build` fixes `API_ORIGIN` (the API's private address) and `NEXT_PUBLIC_SITE_URL`
-   (the website's https origin) into the build, so rebuild when either changes.
+   (the website's https origin) into the build, so rebuild when either changes. The container image (below) takes them
+   as build arguments.
 2. Run `next start` with `APP_HTTPS=true` behind the host's HTTPS proxy. The proxy must replace `X-Forwarded-For` with the
    client's address, or append it, and `next start` must not be reachable any other way: the app passes that header to
    the API unchanged, and the API's per-address limits depend on it.
@@ -273,6 +294,23 @@ the app's parts.
 nobody is signed out.
 
 **Secrets**: the app holds none. `API_ORIGIN` and `NEXT_PUBLIC_SITE_URL` are configuration.
+
+### Container image
+
+`Dockerfile` builds the Next.js standalone server for any host that runs containers. Only the image build sets
+`NEXT_OUTPUT=standalone`; other builds keep `next start`. The build refuses to run without both build arguments, and the
+runtime image runs `node server.js` as the non-root `node` user on `PORT` 3000 with `APP_HTTPS=true`. Run it behind the
+host's HTTPS proxy, as described in "Deploy" above. Base images are pinned by digest, and Dependabot proposes updates.
+
+```bash
+docker build -t nextstep-app \
+  --build-arg API_ORIGIN=http://<API private address>:8080 \
+  --build-arg NEXT_PUBLIC_SITE_URL=https://<website origin> .
+docker run -p 3000:3000 nextstep-app
+```
+
+CI builds the image, starts it, and checks that `/login` has a nonce-based CSP and HSTS, that the build used
+`NEXT_PUBLIC_SITE_URL`, and that the container doesn't run as root.
 
 ## How it's organized
 

@@ -1,0 +1,13 @@
+# Only the build inputs go into the image build context.
+.git
+node_modules
+.next
+.next-staging
+out
+coverage
+test-results
+playwright-report
+blob-report
+lighthouse-reports
+.env*
+*.log

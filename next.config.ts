@@ -14,6 +14,8 @@ const permissionsPolicy = ["accelerometer", "camera", "geolocation", "gyroscope"
 const nextConfig: NextConfig = {
   // scripts/staging.ps1 builds into .next-staging, so a staging build never replaces the one pnpm test:e2e uses.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // The container image (Dockerfile) builds the self-contained standalone server; other builds keep next start.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   poweredByHeader: false,
   turbopack: {
     rules: {

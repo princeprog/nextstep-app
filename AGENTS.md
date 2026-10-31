@@ -116,6 +116,9 @@ gitleaks scans the full git history, so a key-like literal can't be removed once
 strings in code or tests; build fake tokens at runtime (for example `"t".repeat(43)`). `.gitleaksignore` lists only reviewed
 findings, each with a comment. Run `gitleaks git . --redact` before pushing, and don't push if it reports anything.
 
+Keep the `Dockerfile` building and serving (CI's image job checks it); the standalone output is set only through
+`NEXT_OUTPUT=standalone` in the image build. Base images are pinned by digest; change the tag and digest together.
+
 ## Don'ts
 
 - Don't add shadcn/ui or app code to the separate website repository.

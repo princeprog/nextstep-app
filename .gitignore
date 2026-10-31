@@ -19,7 +19,8 @@
 
 # next.js
 /.next/
-/.next-staging/
+# Other build folders, such as .next-staging from scripts/staging.ps1
+/.next-*/
 /out/
 
 # production

@@ -208,3 +208,39 @@ jobs:
             ${{ runner.temp }}/api.log
             ${{ runner.temp }}/postgres.log
             ${{ runner.temp }}/mailpit.log
+
+  image:
+    name: Container image builds and starts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the image
+        run: |
+          docker build --tag nextstep-app:ci \
+            --build-arg API_ORIGIN=http://127.0.0.1:8080 \
+            --build-arg NEXT_PUBLIC_SITE_URL=https://nextstep.example .
+      - name: Start it and check the sign-in page
+        run: |
+          docker run --detach --name app --publish 127.0.0.1:3000:3000 nextstep-app:ci
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:3000/login; then
+              echo "Serving after $attempt checks"
+              break
+            fi
+            sleep 1
+          done
+          headers="$(curl --silent --fail --dump-header - --output /dev/null http://127.0.0.1:3000/login)"
+          echo "$headers" | grep -qi '^content-security-policy:.*nonce-' || { echo "::error::No nonce-based CSP"; exit 1; }
+          echo "$headers" | grep -qi '^strict-transport-security: max-age=' || { echo "::error::No HSTS header"; exit 1; }
+          curl --silent --fail http://127.0.0.1:3000/login | grep -q 'https://nextstep.example/terms/' \
+            || curl --silent --fail http://127.0.0.1:3000/register | grep -q 'https://nextstep.example/terms/' \
+            || { echo "::error::The build didn't use NEXT_PUBLIC_SITE_URL"; exit 1; }
+          if [ "$(docker exec app id -u)" = "0" ]; then
+            echo "::error::The app container runs as root"
+            exit 1
+          fi
+          echo "The image serves the app with its security headers as a non-root user."
+      - name: Show the app log
+        if: failure()
+        run: docker logs app || true
