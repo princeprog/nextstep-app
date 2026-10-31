@@ -62,6 +62,7 @@ jobs:
           cache-dependency-path: nextstep-api/pom.xml
 
       - name: Install PostgreSQL 18 server binaries (PGDG)
+        timeout-minutes: 10
         run: |
           # Install binaries only; the throwaway cluster is created by the runner user in the next step.
           sudo install -d /etc/postgresql-common/createcluster.d /usr/share/postgresql-common/pgdg
@@ -71,8 +72,16 @@ jobs:
             https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends postgresql-18
+          # A package mirror can stall; give each attempt a deadline and try up to three times.
+          for attempt in 1 2 3; do
+            if timeout 120 sudo apt-get update \
+              && timeout 300 sudo apt-get install --yes --no-install-recommends postgresql-18; then
+              exit 0
+            fi
+            echo "::warning::Installing PostgreSQL failed or stalled (attempt $attempt of 3)"
+            sleep 15
+          done
+          exit 1
 
       - name: Start a throwaway PostgreSQL cluster
         run: |
