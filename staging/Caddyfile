@@ -1,6 +1,7 @@
-# HTTPS front for the local, production-like staging copy of NextStep. scripts/staging.ps1 sets every variable below
-# and runs Caddy with this file. It listens on 127.0.0.1 only and uses certificates from Caddy's own local authority,
-# which is not added to the Windows certificate store, so browsers warn and the staging tests ignore that warning.
+# HTTPS front for the production-like staging copy of NextStep. scripts/staging.ps1 (Caddy on this machine, listening
+# on 127.0.0.1) and staging/compose.yaml (Caddy in a container, published only on 127.0.0.1) set every variable below.
+# Certificates come from Caddy's own local authority, which isn't added to any trust store, so browsers warn and the
+# staging tests ignore that warning.
 {
 	admin off
 	auto_https disable_redirects
@@ -14,15 +15,15 @@
 # The app. Like a hosting provider's proxy, Caddy terminates TLS, replaces any X-Forwarded-For the client sent with the
 # real client address, and sets X-Forwarded-Proto. The app forwards /api/v1 to the API with those headers unchanged.
 app.nextstep.localhost:{$NEXTSTEP_HTTPS_PORT} {
-	bind 127.0.0.1
+	bind {$NEXTSTEP_BIND}
 	tls internal
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:{$NEXTSTEP_APP_PORT}
+	reverse_proxy {$NEXTSTEP_APP_UPSTREAM}
 }
 
 # The static website, built with production settings.
 nextstep.localhost:{$NEXTSTEP_HTTPS_PORT} {
-	bind 127.0.0.1
+	bind {$NEXTSTEP_BIND}
 	tls internal
 	encode zstd gzip
 	root * "{$NEXTSTEP_SITE_ROOT}"

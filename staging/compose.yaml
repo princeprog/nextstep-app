@@ -1,0 +1,79 @@
+# Production-like staging in containers: the topology of scripts/staging.ps1, built from the three checkouts with each
+# repository's own Dockerfile. CI starts a fresh copy for every push; it also runs on any machine with Docker
+# (README, "Production-like staging"). Everything is published on 127.0.0.1 only.
+#
+# Needs nextstep-api and nextstep next to this repository, with the website already built for the staging origins in
+# nextstep/out, and two random values in the environment:
+#
+#   STAGING_DB_PASSWORD=$(openssl rand -hex 24) STAGING_IDENTIFIER_HASH_KEY=$(openssl rand -hex 32) \
+#     docker compose -f staging/compose.yaml up --build --detach --wait
+name: nextstep-staging
+
+services:
+  postgres:
+    image: postgres:18@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+    environment:
+      POSTGRES_USER: nextstep
+      POSTGRES_DB: nextstep_staging
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD:?Set STAGING_DB_PASSWORD to a random value}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nextstep -d nextstep_staging"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # The API image runs its production profile and production rate limits.
+  api:
+    build: ../../nextstep-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/nextstep_staging
+      DATABASE_USER: nextstep
+      DATABASE_PASSWORD: ${STAGING_DB_PASSWORD:?Set STAGING_DB_PASSWORD to a random value}
+      APP_PUBLIC_ORIGIN: https://app.nextstep.localhost:8443
+      IDENTIFIER_HASH_KEY: ${STAGING_IDENTIFIER_HASH_KEY:?Set STAGING_IDENTIFIER_HASH_KEY to 32 or more random characters}
+      MAIL_MODE: smtp
+      # Mailpit shares this container's network (below), so it is a relay on the same machine, which the production
+      # profile allows without TLS.
+      MAIL_HOST: 127.0.0.1
+      MAIL_PORT: "1025"
+      MAIL_SMTP_AUTH: "false"
+      MAIL_STARTTLS: "false"
+      MAIL_FROM: "NextStep <no-reply@nextstep.test>"
+    ports:
+      # The readiness probe on the API's own port, as a host's health check would use it, and Mailpit's inbox.
+      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:8025:8025"
+
+  # The email provider's stand-in, as a sidecar in the API's network namespace.
+  mailpit:
+    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+    network_mode: service:api
+
+  # The Next.js standalone server. It has no published port: like behind a host's proxy, only Caddy reaches it.
+  app:
+    build:
+      context: ..
+      args:
+        API_ORIGIN: http://api:8080
+        NEXT_PUBLIC_SITE_URL: https://nextstep.localhost:8443
+
+  # TLS for the app and the website, replacing any X-Forwarded-For the client sends, like a host's edge.
+  caddy:
+    image: caddy:2.11.7@sha256:36c24ad91a7ff7bc4c87fe22bfa8df3c4b18da0773d73fc12ee2c52b98c0bb7e
+    depends_on:
+      - app
+    environment:
+      NEXTSTEP_BIND: 0.0.0.0
+      NEXTSTEP_HTTP_PORT: "8480"
+      NEXTSTEP_HTTPS_PORT: "8443"
+      NEXTSTEP_APP_UPSTREAM: app:3000
+      NEXTSTEP_SITE_ROOT: /srv/site
+      NEXTSTEP_CADDY_STORAGE: /data/caddy
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../nextstep/out:/srv/site:ro
+    ports:
+      - "127.0.0.1:8443:8443"

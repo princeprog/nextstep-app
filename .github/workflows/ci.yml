@@ -253,3 +253,93 @@ jobs:
       - name: Show the app log
         if: failure()
         run: docker logs app || true
+
+  staging:
+    # A fresh, isolated production-like environment for every push: the API and app images, PostgreSQL, Mailpit, and
+    # Caddy with local TLS (staging/compose.yaml), checked by the staging tests.
+    name: Production-like staging in containers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the app
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: nextstep-app
+          persist-credentials: false
+      - name: Check out the API (main)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: princeprog/nextstep-api
+          ref: main
+          path: nextstep-api
+          persist-credentials: false
+      - name: Check out the website (main)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: princeprog/nextstep
+          ref: main
+          path: nextstep
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: nextstep-app/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Build the website for the staging origins
+        working-directory: nextstep
+        env:
+          SITE_ENV: production
+          SITE_PUBLIC_ORIGIN: https://nextstep.localhost:8443
+          PUBLIC_APP_URL: https://app.nextstep.localhost:8443/register
+          PUBLIC_DEMO_URL: https://app.nextstep.localhost:8443/demo
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Start staging
+        working-directory: nextstep-app
+        run: |
+          db_password="$(openssl rand -hex 24)"
+          hash_key="$(openssl rand -hex 32)"
+          echo "::add-mask::$db_password"
+          echo "::add-mask::$hash_key"
+          {
+            echo "STAGING_DB_PASSWORD=$db_password"
+            echo "STAGING_IDENTIFIER_HASH_KEY=$hash_key"
+          } >> "$GITHUB_ENV"
+          STAGING_DB_PASSWORD="$db_password" STAGING_IDENTIFIER_HASH_KEY="$hash_key" \
+            docker compose -f staging/compose.yaml up --build --detach --wait
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:8081/actuator/health/readiness \
+              && curl --silent --fail --insecure --output /dev/null \
+                --resolve app.nextstep.localhost:8443:127.0.0.1 https://app.nextstep.localhost:8443/login; then
+              echo "Staging is up after $attempt checks"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Staging didn't come up within 3 minutes"
+          exit 1
+      - name: Install app dependencies
+        working-directory: nextstep-app
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright Chromium
+        working-directory: nextstep-app
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run the staging tests
+        working-directory: nextstep-app
+        run: pnpm test:staging
+      - name: Save the container logs
+        if: failure()
+        working-directory: nextstep-app
+        run: docker compose -f staging/compose.yaml logs --no-color > "$RUNNER_TEMP/staging.log" 2>&1 || true
+      - name: Upload reports and logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: staging-failure-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            nextstep-app/test-results/
+            ${{ runner.temp }}/staging.log

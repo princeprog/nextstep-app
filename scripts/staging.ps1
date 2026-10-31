@@ -242,9 +242,10 @@ function Start-Staging {
     $caddyVariables = @{
         NEXTSTEP_CADDY_STORAGE = (Join-Path $stateDir 'caddy') -replace '\\', '/'
         NEXTSTEP_SITE_ROOT = (Join-Path $siteDir 'out') -replace '\\', '/'
+        NEXTSTEP_BIND = '127.0.0.1'
         NEXTSTEP_HTTP_PORT = '8480'
         NEXTSTEP_HTTPS_PORT = "$httpsPort"
-        NEXTSTEP_APP_PORT = "$appPort"
+        NEXTSTEP_APP_UPSTREAM = "127.0.0.1:$appPort"
     }
     $appVariables = @{ NODE_ENV = 'production'; APP_HTTPS = 'true'; NEXT_DIST_DIR = $appDistDir; NEXT_TELEMETRY_DISABLED = '1' }
     $nextCli = Join-Path $appDir 'node_modules\next\dist\bin\next'

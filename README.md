@@ -225,6 +225,25 @@ client addresses.
 It needs JDK 25, Caddy and Mailpit (`CADDY_PATH` and `MAILPIT_PATH`, on PATH, or under `%LOCALAPPDATA%\NextStep\tools`), and
 the `nextstep-api` and `nextstep` checkouts next to this one. Logs and process IDs go to `%LOCALAPPDATA%\NextStep\staging`.
 
+**In containers.** `staging/compose.yaml` builds the same topology from each repository's Dockerfile:
+
+- PostgreSQL 18
+- the API image, in its production profile
+- Mailpit, as a sidecar in the API's network, so it counts as a relay on the same machine
+- the app image, which only Caddy can reach
+- Caddy, with the same `staging/Caddyfile`
+
+Everything is published on 127.0.0.1 only. CI starts a fresh copy for every push and runs `pnpm test:staging` against it,
+so every change gets its own isolated, production-like environment. To run it on a machine with Docker, first build the
+website for the staging origins (see the `staging` job in `.github/workflows/ci.yml`), then:
+
+```bash
+export STAGING_DB_PASSWORD=$(openssl rand -hex 24) STAGING_IDENTIFIER_HASH_KEY=$(openssl rand -hex 32)
+docker compose -f staging/compose.yaml up --build --detach --wait
+pnpm test:staging
+docker compose -f staging/compose.yaml down --volumes
+```
+
 ## Security headers
 
 `src/proxy.ts` gives every page response a Content-Security-Policy with a fresh nonce. Next.js adds that nonce to the
