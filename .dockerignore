@@ -2,7 +2,7 @@
 .git
 node_modules
 .next
-.next-staging
+.next-*
 out
 coverage
 test-results

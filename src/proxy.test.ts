@@ -31,15 +31,19 @@ describe("proxy", () => {
     expect(response.headers.get("content-security-policy")).toContain("upgrade-insecure-requests")
   })
 
-  it("runs for pages, not for API calls, build assets, metadata files, or router prefetches", () => {
+  it("runs for everything it renders, including prefetches, but not for API calls, build assets, or metadata files", () => {
     const runsFor = (url: string, headers?: Record<string, string>) => unstable_doesMiddlewareMatch({ config, url, headers })
     expect(runsFor("/")).toBe(true)
     expect(runsFor("/login")).toBe(true)
     expect(runsFor("/applications/0b6c3f0e-1111-4c2b-9d7e-123456789abc/edit")).toBe(true)
+    // The app's own not-found page under /api/ still gets the policy; only the forwarded API is left out.
+    expect(runsFor("/api/not-a-route")).toBe(true)
     expect(runsFor("/api/v1/me")).toBe(false)
     expect(runsFor("/_next/static/chunks/main.js")).toBe(false)
     expect(runsFor("/icon.svg")).toBe(false)
     expect(runsFor("/robots.txt")).toBe(false)
-    expect(runsFor("/dashboard", { "next-router-prefetch": "1" })).toBe(false)
+    // Prefetch headers come from the client, so they must not switch the policy off.
+    expect(runsFor("/dashboard", { "next-router-prefetch": "1" })).toBe(true)
+    expect(runsFor("/dashboard", { purpose: "prefetch" })).toBe(true)
   })
 })

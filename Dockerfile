@@ -21,8 +21,10 @@ RUN if [ -z "$API_ORIGIN" ] || [ -z "$NEXT_PUBLIC_SITE_URL" ]; then \
 FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 APP_HTTPS=true
-COPY --from=build --chown=node:node /app/.next/standalone ./
-COPY --from=build --chown=node:node /app/.next/static ./.next/static
+# The server code stays owned by root, so code running in the server can't rewrite it; only the cache is writable.
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+RUN mkdir -p .next/cache && chown node:node .next/cache
 USER node
 EXPOSE 3000
 CMD ["node", "server.js"]

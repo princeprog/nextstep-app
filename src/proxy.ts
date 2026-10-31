@@ -24,13 +24,10 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      // Pages only. API calls (forwarded to Spring Boot), build assets, and metadata files don't render HTML, and
-      // router prefetches are data requests.
-      source: "/((?!api/|_next/static|_next/image|favicon.ico|icon.svg|robots.txt).*)",
-      missing: [
-        { type: "header", key: "next-router-prefetch" },
-        { type: "header", key: "purpose", value: "prefetch" },
-      ],
+      // Everything this server renders, including router prefetches: their headers are set by the client, so skipping
+      // them would let anyone fetch a page without its policy. Only API calls (forwarded to Spring Boot), build
+      // assets, and metadata files are left out.
+      source: "/((?!api/v1/|_next/static|_next/image|favicon.ico|icon.svg|robots.txt).*)",
     },
   ],
 }

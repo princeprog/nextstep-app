@@ -325,8 +325,12 @@ host's HTTPS proxy, as described in "Deploy" above. Base images are pinned by di
 docker build -t nextstep-app \
   --build-arg API_ORIGIN=http://<API private address>:8080 \
   --build-arg NEXT_PUBLIC_SITE_URL=https://<website origin> .
-docker run -p 3000:3000 nextstep-app
+docker run -p 127.0.0.1:3000:3000 nextstep-app   # reachable only from this machine, for example by the proxy
 ```
+
+Never publish the app's port where clients can reach it directly. Ports Docker publishes skip the host's firewall (UFW
+included), and a client that reaches `next start` directly can send its own `X-Forwarded-For` and get around the API's
+per-address limits. Publish on 127.0.0.1 or on a private network that only the HTTPS proxy can reach.
 
 CI builds the image, starts it, and checks that `/login` has a nonce-based CSP and HSTS, that the build used
 `NEXT_PUBLIC_SITE_URL`, and that the container doesn't run as root.
