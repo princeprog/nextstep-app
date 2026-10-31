@@ -107,6 +107,7 @@ pnpm build
 pnpm start          # serve the production build on :3000
 pnpm test:e2e       # Playwright; needs a build, a running API, and Mailpit (see below)
 pnpm perf           # Lighthouse mobile lab check; needs a build and a running API
+pnpm test:staging   # checks the production-like staging copy started by scripts\staging.ps1 (see below)
 pnpm api:types      # regenerate src/lib/api/schema.d.ts after an API contract change
 ```
 
@@ -167,6 +168,43 @@ thresholds (LCP 2.5 s, CLS 0.1, TBT 200 ms, FCP 1.8 s, Speed Index 3.4 s), and w
 `summary.json` to `lighthouse-reports/<timestamp>/`, which git ignores. SEO scores are low on purpose because every page
 is noindex. Lab numbers depend on the machine, so this check isn't part of CI.
 
+## Production-like staging (local)
+
+`scripts/staging.ps1` runs the whole product the way production will, on this machine only, so a release can be checked
+before anything is deployed.
+
+| Piece | How it runs |
+| --- | --- |
+| Caddy | `https://app.nextstep.localhost:8443` (the app) and `https://nextstep.localhost:8443` (the website), with certificates from Caddy's own local authority, which isn't added to Windows. Like a host's edge, it replaces any `X-Forwarded-For` the client sends and sets `X-Forwarded-Proto` (`staging/Caddyfile`). |
+| App | `next start` on 127.0.0.1:3200 with `APP_HTTPS=true`, built into `.next-staging` (`NEXT_DIST_DIR`, so the `.next` build that `pnpm test:e2e` uses is untouched) with `API_ORIGIN=http://127.0.0.1:8081` and `NEXT_PUBLIC_SITE_URL=https://nextstep.localhost:8443`. |
+| API | The jar with `SPRING_PROFILES_ACTIVE=production` on 127.0.0.1:8081: production rate limits, a new `IDENTIFIER_HASH_KEY` on every start, the `nextstep_staging` database, SMTP to Mailpit, and the real Pwned Passwords check. |
+| Website | The static export built with `SITE_ENV=production` for the staging origins, served by Caddy. |
+| Email | Mailpit stands in for the email provider (inbox at http://127.0.0.1:8025). |
+
+```powershell
+..\nextstep-api\scripts\db-dev.ps1 start    # the development PostgreSQL cluster
+.\scripts\staging.ps1 start -Fresh          # builds everything, recreates nextstep_staging, starts the services
+pnpm test:staging                           # playwright.staging.config.ts and e2e-staging/
+.\scripts\staging.ps1 stop
+```
+
+`pnpm test:staging` checks:
+
+- the production headers on pages, and HSTS on API responses, which shows the HTTPS forwarding headers reach the API
+- that actuator endpoints aren't reachable through the public origin
+- the whole journey: sign up, confirm through the emailed link, the `__Host-` session cookie, an application, export,
+  password reset, and deletion
+- the links between the website and the app
+- that a client can't dodge per-address limits with its own `X-Forwarded-For`
+
+The last test uses up 127.0.0.1's sign-in allowance for 15 minutes, so start staging with `-Fresh` before running the
+tests again. Requests to the `*.localhost` hosts are made from the browser, because Node can't resolve those names on
+Windows. The last run (2026-11-01) passed 4 of 4, and the API's production log held only INFO entries, with no email or
+client addresses.
+
+It needs JDK 25, Caddy and Mailpit (`CADDY_PATH` and `MAILPIT_PATH`, on PATH, or under `%LOCALAPPDATA%\NextStep\tools`), and
+the `nextstep-api` and `nextstep` checkouts next to this one. Logs and process IDs go to `%LOCALAPPDATA%\NextStep\staging`.
+
 ## Security headers
 
 `src/proxy.ts` gives every page response a Content-Security-Policy with a fresh nonce. Next.js adds that nonce to the
@@ -214,6 +252,27 @@ runs except on `main`.
   update one, change its version and hash together.
 - `.github/dependabot.yml` opens weekly update pull requests for npm packages (minor and patch updates grouped; ESLint
   and `@types/node` major versions held back, see the comments there) and for the GitHub Actions.
+
+## Operations runbooks
+
+The nextstep-api README holds the full deploy, roll back, restore, secret rotation, and monitoring runbooks. These are
+the app's parts.
+
+**Deploy**
+
+1. Build with the production values. `pnpm build` fixes `API_ORIGIN` (the API's private address) and `NEXT_PUBLIC_SITE_URL`
+   (the website's https origin) into the build, so rebuild when either changes.
+2. Run `next start` with `APP_HTTPS=true` behind the host's HTTPS proxy. The proxy must replace `X-Forwarded-For` with the
+   client's address, or append it, and `next start` must not be reachable any other way: the app passes that header to
+   the API unchanged, and the API's per-address limits depend on it.
+3. Check `https://<app origin>/api/v1/health` (`{"status":"UP"}`), then sign in, open the dashboard, and sign out. After the
+   first deploy on a new host, run `$env:STAGING_URL = "https://<app origin>"; pnpm test:staging -g "per-address"` to confirm
+   the proxy sets the client address. It uses up your own address's sign-in allowance for 15 minutes.
+
+**Roll back**: redeploy the previous build. The app keeps no state of its own, and sessions live in the API's database, so
+nobody is signed out.
+
+**Secrets**: the app holds none. `API_ORIGIN` and `NEXT_PUBLIC_SITE_URL` are configuration.
 
 ## How it's organized
 

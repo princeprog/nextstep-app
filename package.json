@@ -10,6 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:staging": "playwright test --config playwright.staging.config.ts",
     "api:types": "node scripts/sync-api-types.mjs",
     "perf": "node scripts/perf.mjs"
   },

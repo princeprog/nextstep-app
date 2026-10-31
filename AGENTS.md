@@ -95,6 +95,13 @@ pnpm test:e2e
 pnpm perf         # optional Lighthouse lab check; needs the build and the API
 ```
 
+Before a release, and after changing headers, cookies, proxy settings, or build configuration, run the production-like
+staging check (README, "Production-like staging"):
+
+```powershell
+.\scripts\staging.ps1 start -Fresh; pnpm test:staging; .\scripts\staging.ps1 stop
+```
+
 In end-to-end tests, create accounts with `createAccount` (or `register`, `confirmEmail`, and `signIn`) from
 `e2e/helpers.ts`, read emails through `e2e/mailpit.ts`, and give every account a password from `strongPassword()`. The
 API refuses passwords found in Have I Been Pwned, so never use a fixed one. An account signs in only after
@@ -104,6 +111,10 @@ on new screens, and check their keyboard path.
 CI runs the same checks plus the end-to-end suite against nextstep-api `main` (`.github/workflows/ci.yml`).
 `.github/workflows/security.yml` runs `pnpm audit --audit-level high`, OSV-Scanner, and gitleaks. Add an OSV exception to
 `osv-scanner.toml` only with a reason and an expiry date.
+
+gitleaks scans the full git history, so a key-like literal can't be removed once it's pushed. Never put token- or key-like
+strings in code or tests; build fake tokens at runtime (for example `"t".repeat(43)`). `.gitleaksignore` lists only reviewed
+findings, each with a comment. Run `gitleaks git . --redact` before pushing, and don't push if it reports anything.
 
 ## Don'ts
 

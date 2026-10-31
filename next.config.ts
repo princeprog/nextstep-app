@@ -12,6 +12,8 @@ const permissionsPolicy = ["accelerometer", "camera", "geolocation", "gyroscope"
   .join(", ")
 
 const nextConfig: NextConfig = {
+  // scripts/staging.ps1 builds into .next-staging, so a staging build never replaces the one pnpm test:e2e uses.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
   turbopack: {
     rules: {
