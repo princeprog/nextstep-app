@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { takeLinkToken, tokenFromHash, useLinkToken } from "./link-token"
 
-const TOKEN = "Qm9vdHN0cmFwLXRva2VuLWZvci10ZXN0cy0xMjM0NTY"
+const TOKEN = "t".repeat(43) // any 43 URL-safe characters have the shape of a link token
 
 afterEach(() => {
   window.history.replaceState(null, "", "/")

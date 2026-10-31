@@ -1,0 +1,5 @@
+# Findings reviewed and accepted. Each line is a gitleaks fingerprint: commit:file:rule:line.
+# 622a7d8 added two unit tests with a made-up 43-character link token (not a credential). The tests now build
+# their token at runtime; these entries cover the commit that is already on main.
+622a7d89ef2fcfbb767cb9f79ab27f4b07d119cf:src/features/auth/verify-email.test.tsx:generic-api-key:17
+622a7d89ef2fcfbb767cb9f79ab27f4b07d119cf:src/features/auth/link-token.test.ts:generic-api-key:7

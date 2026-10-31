@@ -14,7 +14,7 @@ vi.mock("@/lib/api/client", () => ({
   resetCsrf: vi.fn(),
 }))
 
-const TOKEN = "Qm9vdHN0cmFwLXRva2VuLWZvci10ZXN0cy0xMjM0NTY"
+const TOKEN = "t".repeat(43) // any 43 URL-safe characters have the shape of a link token
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/verify-email#token=" + TOKEN)
