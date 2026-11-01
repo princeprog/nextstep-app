@@ -72,6 +72,9 @@ Product requirements, rules, and decisions live in the owner's local Obsidian va
   state with `useClearPrivateState`.
 - New-password fields use `autocomplete="new-password"` and `NEW_PASSWORD_HINT`; fields that re-check a password use
   `autocomplete="current-password"`.
+- Every screen that says an email was sent shows `LocalInboxNote` (`src/features/auth/local-inbox-note.tsx`), which
+  renders only when the server-side `LOCAL_INBOX_URL` is set. Read it per request in the page with `readLocalInboxUrl()`
+  and pass it down as a prop. Never make it a `NEXT_PUBLIC_` variable, and keep the note outside status messages.
 - Links to the public website (Terms of use, Privacy policy) come from `src/lib/site.ts` (`NEXT_PUBLIC_SITE_URL`, fixed at
   build time) and open in the same tab.
 

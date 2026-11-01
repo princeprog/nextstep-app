@@ -12,19 +12,22 @@ import { Spinner } from "@/components/ui/spinner"
 import { errorMessage } from "@/lib/api/errors"
 
 import { useResendVerification } from "./api"
+import { LocalInboxNote } from "./local-inbox-note"
 
 /**
  * Shown after registration. It reads the same whether or not the address already had an account; only the email
- * itself tells the owner which case applies.
+ * itself tells the owner which case applies. On a local run with LOCAL_INBOX_URL set, it also says where the email went.
  */
 export function CheckEmail({
   email,
   headingRef,
   onChangeEmail,
+  localInboxUrl,
 }: {
   email: string
   headingRef: React.Ref<HTMLHeadingElement>
   onChangeEmail: () => void
+  localInboxUrl: string | null
 }) {
   const resend = useResendVerification()
   const [status, setStatus] = useState<string | null>(null)
@@ -56,6 +59,7 @@ export function CheckEmail({
           Confirmation links expire after 24 hours.
         </p>
         <p className="text-muted-foreground">Can&apos;t find it? Check your spam folder, or send it again.</p>
+        <LocalInboxNote url={localInboxUrl} />
         <LiveStatus message={status} />
         {error ? (
           <Alert variant="destructive">

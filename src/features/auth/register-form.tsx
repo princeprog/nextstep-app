@@ -25,7 +25,7 @@ import { NEW_PASSWORD_HINT } from "./password-rules"
 // Links inside a sentence are underlined, so they don't depend on color.
 const inlineLink = "font-medium text-primary underline underline-offset-4"
 
-export function RegisterForm() {
+export function RegisterForm({ localInboxUrl }: { localInboxUrl: string | null }) {
   const router = useRouter()
   const me = useMe()
   const register = useRegister()
@@ -77,7 +77,9 @@ export function RegisterForm() {
   }
 
   if (sentTo) {
-    return <CheckEmail email={sentTo} headingRef={checkEmailHeading} onChangeEmail={changeEmail} />
+    return (
+      <CheckEmail email={sentTo} headingRef={checkEmailHeading} onChangeEmail={changeEmail} localInboxUrl={localInboxUrl} />
+    )
   }
 
   const name = errorProps(fieldErrors, "displayName")

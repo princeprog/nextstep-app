@@ -3,7 +3,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { ConfirmationLinkForm } from "./confirmation-link-form"
 
 /** Linked from sign-in: a new account confirms its email before it can sign in. */
-export function ResendConfirmation() {
+export function ResendConfirmation({ localInboxUrl }: { localInboxUrl: string | null }) {
   return (
     <Card>
       <CardHeader>
@@ -15,7 +15,7 @@ export function ResendConfirmation() {
           older links stop working.
         </CardDescription>
       </CardHeader>
-      <ConfirmationLinkForm />
+      <ConfirmationLinkForm localInboxUrl={localInboxUrl} />
     </Card>
   )
 }

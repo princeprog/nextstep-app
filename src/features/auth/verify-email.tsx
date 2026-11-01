@@ -19,13 +19,13 @@ import { useLinkToken } from "./link-token"
  * The page a confirmation email links to. Nothing happens until the person presses the button: link scanners and
  * previews load pages, and they must not use up the link. Confirming doesn't sign anyone in.
  */
-export function VerifyEmail() {
+export function VerifyEmail({ localInboxUrl }: { localInboxUrl: string | null }) {
   const token = useLinkToken()
   // A newer link opened in the same tab starts over.
-  return <ConfirmEmail key={token ?? "no-token"} token={token} />
+  return <ConfirmEmail key={token ?? "no-token"} token={token} localInboxUrl={localInboxUrl} />
 }
 
-function ConfirmEmail({ token }: { token: string | null | undefined }) {
+function ConfirmEmail({ token, localInboxUrl }: { token: string | null | undefined; localInboxUrl: string | null }) {
   const confirm = useConfirmEmail()
   const [outcome, setOutcome] = useState<"confirmed" | "invalid" | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -82,7 +82,7 @@ function ConfirmEmail({ token }: { token: string | null | undefined }) {
             Enter your email address and we&apos;ll send a new link.
           </CardDescription>
         </CardHeader>
-        <ConfirmationLinkForm />
+        <ConfirmationLinkForm localInboxUrl={localInboxUrl} />
       </Card>
     )
   }

@@ -7,7 +7,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { useRequestPasswordReset } from "./api"
 import { EmailLinkForm } from "./email-link-form"
 
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({ localInboxUrl }: { localInboxUrl: string | null }) {
   const requestReset = useRequestPasswordReset()
   return (
     <Card>
@@ -28,6 +28,7 @@ export function ForgotPasswordForm() {
             its password. It expires in 30 minutes.
           </>
         )}
+        localInboxUrl={localInboxUrl}
       >
         <p className="text-center text-sm text-muted-foreground">
           Remembered it?{" "}

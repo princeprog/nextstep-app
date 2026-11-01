@@ -45,9 +45,20 @@ pnpm dev          # http://localhost:3000
 The browser only talks to this app's origin. Next.js forwards `/api/v1/*` to the API (a rewrite in `next.config.ts`),
 so the session cookie and CSRF token stay same-origin.
 
-A new account has to confirm its email before it can sign in. With the API's default `MAIL_MODE=log`, every email,
-including its link, is written to the API's log; open the link in the browser. To receive the emails instead, run
-Mailpit and start the API with `.\scripts\run-api.ps1 -Mailpit`; the inbox is at http://127.0.0.1:8025.
+A new account has to confirm its email before it can sign in. Local runs keep email on this computer: with the API's
+default `MAIL_MODE=log`, every email, including its link, is written to the API's log; open the link in the browser. To
+receive the emails in a web inbox instead, run Mailpit and start the API with `.\scripts\run-api.ps1 -Mailpit`; the
+inbox is at http://127.0.0.1:8025. Set `LOCAL_INBOX_URL` to that address when you start the app, and every screen that
+says an email was sent also says that it went to the local test inbox, with a link to open it:
+
+```powershell
+$env:LOCAL_INBOX_URL = 'http://127.0.0.1:8025'
+pnpm dev          # or pnpm start; it's read on every request, so no rebuild is needed
+```
+
+To get the emails in real inboxes, start the API with `.\scripts\run-api.ps1 -Gmail` instead, which sends them through
+your own Gmail account (see "Real email through Gmail" in the nextstep-api README). Leave `LOCAL_INBOX_URL` unset then,
+because the emails no longer go to Mailpit.
 
 ## Configuration
 
@@ -55,6 +66,7 @@ Mailpit and start the API with `.\scripts\run-api.ps1 -Mailpit`; the inbox is at
 | --- | --- | --- | --- |
 | `API_ORIGIN` | `pnpm dev` at startup, `pnpm build` | Where `/api/v1` requests are forwarded. The build records it and `pnpm start` uses the recorded value, so rebuild after changing it. Never sent to the browser. | `http://127.0.0.1:8080` |
 | `APP_HTTPS` | the running server, on every request | Set to `true` when browsers reach the app over HTTPS, for example behind a TLS-terminating proxy. Adds `Strict-Transport-Security` and the CSP `upgrade-insecure-requests` directive. Leave it unset for plain HTTP, including local development. Server-side only; no rebuild needed. | unset |
+| `LOCAL_INBOX_URL` | the running server, on every request | Local testing only: the web inbox that receives the app's emails, such as Mailpit's `http://127.0.0.1:8025`. When it's an `http://` or `https://` address, every screen that says an email was sent (check your email, forgot password, a new confirmation link, and the sign-in hint to confirm first) adds a note that this is a local run whose emails go to the test inbox, with a link that opens it in a new tab. Anything else, including an address with a user name or password, shows nothing. Server-side only, so no build contains it; no rebuild needed. Leave it unset in production and staging. | unset |
 | `NEXT_PUBLIC_SITE_URL` | `pnpm build`, `pnpm dev` at startup | Address of the public website. The registration form links its Terms of use (`/terms/`) and Privacy policy (`/privacy/`), opened in the same tab. An `http://` or `https://` address; a folder path is allowed and a trailing slash is ignored. Public: the build copies it into the JavaScript sent to browsers, so rebuild after changing it. | `http://localhost:3001` |
 | `NEXTSTEP_OPENAPI` | `pnpm api:types` | OpenAPI file path or URL | `../nextstep-api/openapi/openapi.yaml` |
 | `E2E_BASE_URL` | Playwright | App URL under test | `http://localhost:3000` |
@@ -133,6 +145,9 @@ pnpm test:e2e
 `-RelaxedLimits` also raises the API's hourly email allowance (`EMAIL_GLOBAL_LIMIT_PER_HOUR`), which counts every email
 sent and every registration, resend, and reset request, so repeated runs keep receiving their emails. If the build used
 `NEXT_PUBLIC_SITE_URL`, run the tests with the same value.
+
+Leave `LOCAL_INBOX_URL` unset for the server the tests use (locally, Playwright reuses a running `pnpm start`). The tests
+check the screens as production shows them, and the note's link would change the keyboard path they check.
 
 Playwright starts two servers from the same build: `pnpm start` on :3000 for the tests, and one on :3100 with
 `APP_HTTPS=true` that only the HTTPS header check uses. Locally, servers that are already running are reused.

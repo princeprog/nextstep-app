@@ -34,7 +34,7 @@ describe("SignInForm", () => {
   it("adds the confirm-first hint and a way to get a new link to every refused sign-in", async () => {
     // The API gives an unconfirmed account the same answer as a wrong password.
     vi.mocked(api.post).mockRejectedValue(new ApiError(401, "INVALID_CREDENTIALS", "Email or password is incorrect."))
-    renderWithQueryClient(<SignInForm reason={null} />, { signedIn: false })
+    renderWithQueryClient(<SignInForm reason={null} localInboxUrl={null} />, { signedIn: false })
 
     await submit()
 
@@ -49,7 +49,7 @@ describe("SignInForm", () => {
 
   it("keeps other failures to their own message", async () => {
     vi.mocked(api.post).mockRejectedValue(new ApiError(429, "RATE_LIMITED", "Too many attempts. Wait a few minutes and try again."))
-    renderWithQueryClient(<SignInForm reason={null} />, { signedIn: false })
+    renderWithQueryClient(<SignInForm reason={null} localInboxUrl={null} />, { signedIn: false })
 
     await submit()
 
@@ -60,7 +60,7 @@ describe("SignInForm", () => {
   })
 
   it("explains a session that was ended because its email isn't confirmed", () => {
-    renderWithQueryClient(<SignInForm reason="confirm-email" />, { signedIn: false })
+    renderWithQueryClient(<SignInForm reason="confirm-email" localInboxUrl={null} />, { signedIn: false })
 
     const notice = screen.getByRole("status")
     expect(notice).toHaveTextContent("Confirm your email address first, then sign in. The link is in your inbox.")

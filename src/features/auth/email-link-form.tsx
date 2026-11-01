@@ -13,19 +13,24 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { errorMessage, isApiError } from "@/lib/api/errors"
 
+import { LocalInboxNote } from "./local-inbox-note"
+
 /**
  * Asks for an emailed link (password reset, new confirmation link). The API answers the same way whether or not the
  * address has an account, so the form always ends with the same message, which must not claim more than that.
+ * On a local run with LOCAL_INBOX_URL set, a note under the message says where the email went.
  */
 export function EmailLinkForm({
   submitLabel,
   request,
   sentMessage,
+  localInboxUrl,
   children,
 }: {
   submitLabel: string
   request: (email: string) => Promise<unknown>
   sentMessage: (email: string) => React.ReactNode
+  localInboxUrl: string | null
   children?: React.ReactNode
 }) {
   const [email, setEmail] = useState("")
@@ -71,6 +76,7 @@ export function EmailLinkForm({
           <FieldErrorText id={emailError.errorId} message={emailError.message} />
         </Field>
         <LiveStatus message={sentTo ? sentMessage(sentTo) : null} />
+        {sentTo ? <LocalInboxNote url={localInboxUrl} /> : null}
       </CardContent>
       <CardFooter className="mt-6 flex flex-col items-stretch gap-3">
         <Button type="submit" size="lg" disabled={pending} focusableWhenDisabled>

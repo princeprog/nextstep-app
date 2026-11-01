@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { isApiError } from "@/lib/api/errors"
 
 import { useMe, useSignIn } from "./api"
+import { LocalInboxNote } from "./local-inbox-note"
 
 const REASONS: Record<string, string> = {
   expired: "Your session ended. Sign in again to continue.",
@@ -28,8 +29,11 @@ const REASONS: Record<string, string> = {
 
 const RESEND_CONFIRMATION = "/resend-confirmation"
 
-/** `reason` comes from the ?reason= query parameter set when another page sends the user here. */
-export function SignInForm({ reason }: { reason: string | null }) {
+/**
+ * `reason` comes from the ?reason= query parameter set when another page sends the user here. `localInboxUrl` is
+ * LOCAL_INBOX_URL, set only on local runs.
+ */
+export function SignInForm({ reason, localInboxUrl }: { reason: string | null; localInboxUrl: string | null }) {
   const router = useRouter()
   const me = useMe()
   const signIn = useSignIn()
@@ -41,6 +45,9 @@ export function SignInForm({ reason }: { reason: string | null }) {
   // every refusal and says nothing about any account.
   const [refused, setRefused] = useState(false)
   const notice = reason && Object.hasOwn(REASONS, reason) ? REASONS[reason] : null
+  // Both the confirm-email notice and the hint under a refusal say the link is in the inbox. On a local run, the
+  // note says which inbox; like the hint, it shows under every refusal.
+  const mentionsInbox = refused || reason === "confirm-email"
 
   useEffect(() => {
     if (me.data) {
@@ -110,6 +117,7 @@ export function SignInForm({ reason }: { reason: string | null }) {
               ) : null}
             </Alert>
           ) : null}
+          {mentionsInbox ? <LocalInboxNote url={localInboxUrl} /> : null}
           <FieldGroup>
             <Field data-invalid={emailError.invalid || undefined}>
               <FieldLabel htmlFor="email">Email</FieldLabel>

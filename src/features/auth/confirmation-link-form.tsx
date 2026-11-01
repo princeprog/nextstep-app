@@ -9,7 +9,7 @@ import { EmailLinkForm } from "./email-link-form"
  * Asks for a new confirmation link, for /resend-confirmation and for a link that no longer works. The API answers the
  * same way whether or not the address has an account waiting to be confirmed, and so does the message.
  */
-export function ConfirmationLinkForm() {
+export function ConfirmationLinkForm({ localInboxUrl }: { localInboxUrl: string | null }) {
   const resend = useResendVerification()
   return (
     <EmailLinkForm
@@ -21,6 +21,7 @@ export function ConfirmationLinkForm() {
           link. It expires in 24 hours.
         </>
       )}
+      localInboxUrl={localInboxUrl}
     >
       <p className="text-center text-sm text-muted-foreground">
         Already confirmed?{" "}

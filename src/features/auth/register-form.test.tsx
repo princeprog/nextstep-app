@@ -32,7 +32,7 @@ async function fillAndSubmit(email: string) {
 
 describe("RegisterForm", () => {
   it("links the Terms of use and the Privacy policy on the public site, opening in the same tab", () => {
-    renderWithQueryClient(<RegisterForm />, { signedIn: false })
+    renderWithQueryClient(<RegisterForm localInboxUrl={null} />, { signedIn: false })
 
     const terms = screen.getByRole("link", { name: "Terms of use" })
     const privacy = screen.getByRole("link", { name: "Privacy policy" })
@@ -47,7 +47,7 @@ describe("RegisterForm", () => {
 
   it("ends on a check-your-email screen with the address the API used, and resends to it", async () => {
     vi.mocked(api.post).mockImplementation(async (path) => (path === "/auth/register" ? { email: "ana@example.com" } : {}))
-    renderWithQueryClient(<RegisterForm />, { signedIn: false })
+    renderWithQueryClient(<RegisterForm localInboxUrl={null} />, { signedIn: false })
 
     const user = await fillAndSubmit("Ana@Example.com")
 
@@ -72,7 +72,7 @@ describe("RegisterForm", () => {
       }
       throw new ApiError(429, "RATE_LIMITED", "Too many attempts. Wait a few minutes and try again.")
     })
-    renderWithQueryClient(<RegisterForm />, { signedIn: false })
+    renderWithQueryClient(<RegisterForm localInboxUrl={null} />, { signedIn: false })
     const user = await fillAndSubmit("ana@exmaple.com")
     await screen.findByRole("heading", { level: 1, name: "Check your email" })
 
@@ -91,7 +91,7 @@ describe("RegisterForm", () => {
     vi.mocked(api.post).mockRejectedValue(new ApiError(422, "VALIDATION_ERROR", "Check the highlighted fields.", {
       password: "This password has appeared in a data breach. Choose a different one.",
     }))
-    renderWithQueryClient(<RegisterForm />, { signedIn: false })
+    renderWithQueryClient(<RegisterForm localInboxUrl={null} />, { signedIn: false })
 
     await fillAndSubmit("ana@example.com")
 

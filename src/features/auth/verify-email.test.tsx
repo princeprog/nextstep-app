@@ -34,7 +34,7 @@ async function confirmButton() {
 
 describe("VerifyEmail", () => {
   it("confirms only when asked, after taking the token out of the address", async () => {
-    renderWithQueryClient(<VerifyEmail />, { signedIn: false })
+    renderWithQueryClient(<VerifyEmail localInboxUrl={null} />, { signedIn: false })
 
     const button = await confirmButton()
     expect(window.location.hash).toBe("")
@@ -55,7 +55,7 @@ describe("VerifyEmail", () => {
       }
       return {}
     })
-    renderWithQueryClient(<VerifyEmail />, { signedIn: false })
+    renderWithQueryClient(<VerifyEmail localInboxUrl={null} />, { signedIn: false })
     const user = userEvent.setup()
     await user.click(await confirmButton())
 
@@ -71,7 +71,7 @@ describe("VerifyEmail", () => {
 
   it("explains a link that arrived without its token", async () => {
     window.history.replaceState(null, "", "/verify-email")
-    renderWithQueryClient(<VerifyEmail />, { signedIn: false })
+    renderWithQueryClient(<VerifyEmail localInboxUrl={null} />, { signedIn: false })
 
     expect(await screen.findByRole("heading", { level: 1, name: "This link is incomplete" })).toBeInTheDocument()
     expect(screen.getByLabelText("Email")).toBeInTheDocument()
@@ -80,7 +80,7 @@ describe("VerifyEmail", () => {
 
   it("keeps the button for another try when confirming fails for another reason", async () => {
     vi.mocked(api.post).mockRejectedValue(new ApiError(429, "RATE_LIMITED", "Too many attempts. Wait a few minutes and try again."))
-    renderWithQueryClient(<VerifyEmail />, { signedIn: false })
+    renderWithQueryClient(<VerifyEmail localInboxUrl={null} />, { signedIn: false })
 
     await userEvent.setup().click(await confirmButton())
 
