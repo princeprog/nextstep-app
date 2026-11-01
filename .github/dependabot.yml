@@ -32,3 +32,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The image runs Node 24 LTS, like CI and the development setup; move every place to a new major together.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
