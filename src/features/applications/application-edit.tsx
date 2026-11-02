@@ -33,11 +33,11 @@ export function ApplicationEdit({ id }: { id: string }) {
     )
   }
   return (
-    <>
+    <div className="flex w-full max-w-5xl flex-col gap-6">
       <BackToApplications />
       <PageHeader title={"Edit " + application.data.company} description={application.data.jobTitle} />
       <ApplicationForm application={application.data} />
-    </>
+    </div>
   )
 }
 
