@@ -11,7 +11,7 @@ export const keys = {
   applicationDuplicates: (company: string, jobTitle: string, excludeId?: string) =>
     ["applications", "duplicates", company, jobTitle, excludeId ?? null] as const,
   tasks: ["tasks"] as const,
-  taskList: (view: string, page: number) => ["tasks", "list", view, page] as const,
+  taskList: (view: string, page: number, pageSize = 20) => ["tasks", "list", view, page, pageSize] as const,
   task: (id: string | null) => ["tasks", "detail", id] as const,
   interviews: ["interviews"] as const,
   interviewList: (view: string, page: number) => ["interviews", "list", view, page] as const,

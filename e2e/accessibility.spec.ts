@@ -87,9 +87,13 @@ test("keyboard users can skip navigation, use dialogs, and change status", async
   await page.goto("/applications?search=Bluepeak")
   const status = page.getByLabel("Status for Bluepeak Health — UX Researcher").filter({ visible: true })
   await status.focus()
-  await page.keyboard.press("ArrowDown")
+  await page.keyboard.press("Enter")
+  await expect(page.getByRole("listbox")).toBeVisible()
+  await page.keyboard.press("End")
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.press("Enter")
   await expect(page.getByText("Bluepeak Health moved to Rejected")).toBeVisible()
-  await expect(status).toHaveValue("REJECTED")
+  await expect(status).toContainText("Rejected")
 })
 
 test("layouts fit a 320 px screen without sideways scrolling", async ({ page }) => {

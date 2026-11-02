@@ -34,13 +34,10 @@ export function TaskList({ tasks, showApplication = true }: { tasks: Task[]; sho
   )
 }
 
-function TaskRow({ task, showApplication }: { task: Task; showApplication: boolean }) {
+/** Checkbox that completes or reopens a task, with a spinner while the server confirms. */
+export function TaskCompleteToggle({ task }: { task: Task }) {
   const setCompleted = useSetTaskCompleted()
-  const deleteTask = useDeleteTask()
-  const openTaskDialog = useUiStore((state) => state.openTaskDialog)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const completed = task.status === "COMPLETED"
-  const readOnly = task.application.archived
 
   async function toggle(next: boolean) {
     try {
@@ -51,49 +48,40 @@ function TaskRow({ task, showApplication }: { task: Task; showApplication: boole
     }
   }
 
+  return setCompleted.isPending ? (
+    <Spinner aria-label="Saving" />
+  ) : (
+    <Checkbox
+      checked={completed}
+      disabled={task.application.archived}
+      onCheckedChange={(checked) => toggle(Boolean(checked))}
+      aria-label={(completed ? "Reopen task: " : "Mark complete: ") + task.title}
+    />
+  )
+}
+
+/** Edit and delete menu for a task; nothing for tasks on archived applications, which are read-only. */
+export function TaskActions({ task }: { task: Task }) {
+  const deleteTask = useDeleteTask()
+  const openTaskDialog = useUiStore((state) => state.openTaskDialog)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  if (task.application.archived) {
+    return null
+  }
   return (
-    <li className="flex items-start gap-3 py-3">
-      <div className="flex h-6 items-center">
-        {setCompleted.isPending ? (
-          <Spinner aria-label="Saving" />
-        ) : (
-          <Checkbox
-            checked={completed}
-            disabled={readOnly}
-            onCheckedChange={(checked) => toggle(Boolean(checked))}
-            aria-label={(completed ? "Reopen task: " : "Mark complete: ") + task.title}
-          />
-        )}
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className={cn("font-medium break-words", completed && "text-muted-foreground line-through")}>{task.title}</p>
-          <DueBadge state={task.dueState} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Due {formatTaskDue(task)} <span className="whitespace-nowrap">({task.timeZone.replaceAll("_", " ")})</span>
-        </p>
-        {showApplication ? (
-          <Link href={"/applications/" + task.applicationId}
-            className="w-fit text-sm text-primary underline-offset-4 hover:underline">
-            {task.application.company} — {task.application.jobTitle}
-          </Link>
-        ) : null}
-        {task.note ? <p className="text-sm whitespace-pre-wrap text-muted-foreground">{task.note}</p> : null}
-      </div>
-      {readOnly ? null : (
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={"Actions for task: " + task.title} />}>
-            <MoreHorizontalIcon />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => openTaskDialog({ taskId: task.id })}>Edit</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>Delete</DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={"Actions for task: " + task.title} />}>
+          <MoreHorizontalIcon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => openTaskDialog({ taskId: task.id })}>Edit</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>Delete</DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
@@ -111,6 +99,35 @@ function TaskRow({ task, showApplication }: { task: Task; showApplication: boole
           }
         }}
       />
+    </>
+  )
+}
+
+function TaskRow({ task, showApplication }: { task: Task; showApplication: boolean }) {
+  const completed = task.status === "COMPLETED"
+
+  return (
+    <li className="flex items-start gap-3 py-3">
+      <div className="flex h-6 items-center">
+        <TaskCompleteToggle task={task} />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className={cn("font-medium break-words", completed && "text-muted-foreground line-through")}>{task.title}</p>
+          <DueBadge state={task.dueState} />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Due {formatTaskDue(task)} <span className="whitespace-nowrap">({task.timeZone.replaceAll("_", " ")})</span>
+        </p>
+        {showApplication ? (
+          <Link href={"/applications/" + task.applicationId}
+            className="w-fit text-sm text-primary underline-offset-4 hover:underline">
+            {task.application.company} — {task.application.jobTitle}
+          </Link>
+        ) : null}
+        {task.note ? <p className="text-sm whitespace-pre-wrap text-muted-foreground">{task.note}</p> : null}
+      </div>
+      <TaskActions task={task} />
     </li>
   )
 }

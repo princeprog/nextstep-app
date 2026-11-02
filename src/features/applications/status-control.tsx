@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { useMe } from "@/features/auth/api"
 import { useChangeStatus } from "@/features/workspace/api"
@@ -63,19 +63,23 @@ export function StatusControl({ application, id }: { application: Application; i
       <label htmlFor={id} className="sr-only">
         Status for {application.company} — {application.jobTitle}
       </label>
-      <NativeSelect
-        id={id}
-        size="sm"
+      <Select
+        items={STATUS_ORDER.map((value) => ({ value, label: STATUS_LABELS[value] }))}
         value={application.status}
         disabled={change.isPending || application.archived}
-        onChange={(event) => onSelect(event.target.value as ApplicationStatus)}
+        onValueChange={(value) => value && onSelect(value)}
       >
-        {STATUS_ORDER.map((status) => (
-          <NativeSelectOption key={status} value={status}>
-            {STATUS_LABELS[status]}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+        <SelectTrigger id={id} size="sm" className="w-32">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="start" alignItemWithTrigger={false}>
+          <SelectGroup>
+            {STATUS_ORDER.map((status) => (
+              <SelectItem key={status} value={status}>{STATUS_LABELS[status]}</SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
       {change.isPending ? <Spinner aria-label="Saving status" /> : null}
       <Dialog open={askDate} onOpenChange={(open) => !change.isPending && setAskDate(open)}>
         <DialogContent>

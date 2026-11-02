@@ -33,7 +33,8 @@ test("two demo visitors get separate workspaces", async ({ browser }) => {
   await first.getByRole("link", { name: "Harbor Labs" }).filter({ visible: true }).first().click()
   await first.waitForURL(/\/applications\/[0-9a-f-]{36}$/)
   const harborId = first.url().split("/").pop()!
-  await first.getByLabel("Status for Harbor Labs — Frontend Developer").selectOption("OFFER")
+  await first.getByLabel("Status for Harbor Labs — Frontend Developer").click()
+  await first.getByRole("option", { name: "Offer", exact: true }).click()
   await expect(first.getByText("Harbor Labs moved to Offer")).toBeVisible()
 
   const secondContext = await browser.newContext()
@@ -45,7 +46,7 @@ test("two demo visitors get separate workspaces", async ({ browser }) => {
   await second.goto("/applications?search=Harbor")
   await second.getByRole("link", { name: "Harbor Labs" }).filter({ visible: true }).first().click()
   await second.waitForURL(/\/applications\/[0-9a-f-]{36}$/)
-  await expect(second.getByLabel("Status for Harbor Labs — Frontend Developer")).toHaveValue("INTERVIEW")
+  await expect(second.getByLabel("Status for Harbor Labs — Frontend Developer")).toContainText("Interview")
 
   await firstContext.close()
   await secondContext.close()

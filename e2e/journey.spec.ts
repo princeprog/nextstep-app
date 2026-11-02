@@ -17,16 +17,18 @@ test("a new user tracks an application from first save to dashboard, archive, an
 
   // Moving to Applied asks for the real date and changes nothing until it is given.
   const status = page.getByLabel("Status for Harbor Labs E2E — Frontend Developer")
-  await status.selectOption("APPLIED")
+  await status.click()
+  await page.getByRole("option", { name: "Applied", exact: true }).click()
   const appliedDialog = page.getByRole("dialog", { name: "When did you apply?" })
   await expect(appliedDialog).toBeVisible()
   await appliedDialog.getByRole("button", { name: "Cancel" }).click()
-  await expect(status).toHaveValue("SAVED")
-  await status.selectOption("APPLIED")
+  await expect(status).toContainText("Saved")
+  await status.click()
+  await page.getByRole("option", { name: "Applied", exact: true }).click()
   await appliedDialog.getByLabel("Applied on").fill(manilaDate(-2))
   await appliedDialog.getByRole("button", { name: "Mark as applied" }).click()
   await expect(appliedDialog).toBeHidden()
-  await expect(status).toHaveValue("APPLIED")
+  await expect(status).toContainText("Applied")
 
   // A follow-up due today and an interview tomorrow.
   await card(page, "Tasks").getByRole("button", { name: "Add task" }).click()
@@ -46,7 +48,8 @@ test("a new user tracks an application from first save to dashboard, archive, an
   await expect(interviewDialog).toBeHidden()
   await expect(card(page, "Interviews").getByText("10:00 AM")).toBeVisible()
 
-  await status.selectOption("INTERVIEW")
+  await status.click()
+  await page.getByRole("option", { name: "Interview", exact: true }).click()
   await expect(page.getByText("Harbor Labs E2E moved to Interview")).toBeVisible()
 
   await page.getByRole("link", { name: "Dashboard", exact: true }).click()
@@ -76,7 +79,7 @@ test("a new user tracks an application from first save to dashboard, archive, an
   await page.waitForURL(/\/applications\/[0-9a-f-]{36}$/)
   await page.getByRole("button", { name: "Restore" }).click()
   await expect(page.getByText("This application is archived")).toBeHidden()
-  await expect(page.getByLabel("Status for Harbor Labs E2E — Frontend Developer")).toHaveValue("INTERVIEW")
+  await expect(page.getByLabel("Status for Harbor Labs E2E — Frontend Developer")).toContainText("Interview")
   await expect(page.getByText(notes)).toBeVisible()
   await expect(card(page, "Tasks").getByText("Send follow-up email")).toBeVisible()
   await expect(card(page, "Interviews").getByText("10:00 AM")).toBeVisible()

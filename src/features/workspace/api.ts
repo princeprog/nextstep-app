@@ -154,10 +154,10 @@ export function useRestoreApplication() {
 
 export type TaskView = "all" | "open" | "completed" | "overdue" | "upcoming"
 
-export function useTasks(view: TaskView, page: number) {
+export function useTasks(view: TaskView, page: number, pageSize = 20) {
   return useQuery({
-    queryKey: keys.taskList(view, page),
-    queryFn: ({ signal }) => api.get<TaskPage>("/tasks", { signal, query: { view, page, pageSize: 20 } }),
+    queryKey: keys.taskList(view, page, pageSize),
+    queryFn: ({ signal }) => api.get<TaskPage>("/tasks", { signal, query: { view, page, pageSize } }),
     refetchInterval: TIME_SENSITIVE_REFRESH,
     placeholderData: keepPreviousData,
   })
